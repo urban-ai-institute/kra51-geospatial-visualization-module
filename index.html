@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Seoul Data Atlas</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,500;1,400&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link href="https://unpkg.com/maplibre-gl@4/dist/maplibre-gl.css" rel="stylesheet" />
+<link rel="stylesheet" href="css/styles.css" />
+</head>
+<body>
+
+<!-- ============ LANDING ============ -->
+<section id="landing" class="landing">
+  <canvas id="landing-map" class="landing-map"></canvas>
+  <div class="light-beam" id="light-beam"></div>
+  <div class="landing-content">
+    <h1 class="landing-title" id="landing-title">Seoul Data Atlas</h1>
+    <p class="landing-subtitle" id="landing-subtitle">Mapping the hidden rhythms of the city.</p>
+    <button class="cta-button" id="cta-enter">Explore The Atlas</button>
+  </div>
+</section>
+
+<!-- ============ DASHBOARD ============ -->
+<section id="dashboard" class="dashboard hidden">
+
+  <!-- Top bar -->
+  <header class="topbar">
+    <div class="brand">
+      <span class="brand-mark">✧</span>
+      <span class="brand-name">SEOUL DATA ATLAS</span>
+    </div>
+    <div class="topbar-breadcrumb" id="topbar-breadcrumb"></div>
+    <div class="topbar-right">
+      <div class="dataset-switch" id="dataset-switch"></div>
+    </div>
+  </header>
+
+  <div class="dash-body">
+
+    <!-- Side nav: hover a item to preview its overlay panel, click to pin it. -->
+    <nav class="side-nav">
+      <button class="nav-item" data-nav="overview"><span class="nav-icon">◱</span><span class="nav-label"><b>Overview</b></span></button>
+      <button class="nav-item" data-nav="library"><span class="nav-icon">▤</span><span class="nav-label"><b>Library</b></span></button>
+      <button class="nav-item" data-nav="map"><span class="nav-icon">▦</span><span class="nav-label"><b>Map</b></span></button>
+      <button class="nav-item" data-nav="saved"><span class="nav-icon">◈</span><span class="nav-label"><b>Saved</b></span></button>
+      <div class="nav-spacer"></div>
+      <button class="nav-item" data-nav="settings"><span class="nav-icon">⚙</span><span class="nav-label"><b>Settings</b></span></button>
+    </nav>
+
+    <!-- Main grid: 3D map hero (left) + reserved card column (far right) -->
+    <div class="analysis-grid">
+
+      <!-- 3D map hero -->
+      <section class="atlas-canvas panel-cell">
+        <div class="map-stage" id="map-stage">
+        <div id="map"></div>
+
+        <!-- Single floating panel (the existing map-control). The side-nav
+             hover/pins it and swaps its content: Map nav -> #mc-map-content (the
+             kepler controls); other nav items -> #mc-nav-content (generated). -->
+        <div class="map-control nav-overlay" id="map-control">
+          <div class="panel-head"><div class="panel-name" id="panel-name">MAP PANEL</div><div class="panel-state" id="panel-state">HOVER</div></div>
+          <div id="mc-nav-content"></div>
+          <div id="mc-map-content">
+          <div class="mc-title">MAP MODE</div>
+          <div class="seg" id="mc-mode">
+            <button data-mode="3d" class="active">3D</button>
+            <button data-mode="2d">2D</button>
+            <button data-mode="compare">Compare</button>
+          </div>
+          <div class="mc-title">PRESETS</div>
+          <div class="seg" id="mc-presets">
+            <button data-preset="Night City">Night City</button>
+            <button data-preset="Heat Field">Heat Field</button>
+            <button data-preset="Data Points">Data Points</button>
+          </div>
+
+          <div class="mc-title">DATA LAYERS</div>
+          <div class="layer-list" id="mc-layers">
+            <label class="layer-row"><input type="checkbox" data-layer="pointCore" checked /><span class="lyr-dot" style="background:#FFC857"></span><span>Point Core</span></label>
+            <label class="layer-row"><input type="checkbox" data-layer="pointHalo" checked /><span class="lyr-dot" style="background:#FF9D42"></span><span>Point Halo</span></label>
+            <label class="layer-row"><input type="checkbox" data-layer="influence" /><span class="lyr-dot" style="background:#FF7A33"></span><span>Value Rings</span></label>
+            <label class="layer-row"><input type="checkbox" data-layer="heatmap" /><span class="lyr-dot" style="background:#F5A45D"></span><span>Heatmap</span></label>
+
+            <div class="mc-subtitle">MORE</div>
+            <label class="layer-row"><input type="checkbox" data-layer="choropleth" /><span class="lyr-dot" style="background:#FF3B30"></span><span>Choropleth</span></label>
+            <label class="layer-row"><input type="checkbox" data-layer="columns" /><span class="lyr-dot" style="background:#FFB86B"></span><span>3D Columns</span></label>
+            <label class="layer-row"><input type="checkbox" data-layer="hexbin" /><span class="lyr-dot" style="background:#FFD873"></span><span>Hexbin</span></label>
+            <label class="layer-row"><input type="checkbox" data-layer="dotField" /><span class="lyr-dot" style="background:#FFE08A"></span><span>Dot Field</span></label>
+          </div>
+
+          <div class="mc-slider"><label>Elevation <span id="mc-elevation-val">1.0</span></label><input type="range" id="mc-elevation" min="0" max="3" step="0.1" value="1" /></div>
+          <div class="mc-slider"><label>Radius <span id="mc-radius-val">1.0</span></label><input type="range" id="mc-radius" min="0.3" max="3" step="0.1" value="1" /></div>
+          <div class="mc-slider"><label>Opacity <span id="mc-opacity-val">0.85</span></label><input type="range" id="mc-opacity" min="0.2" max="1" step="0.05" value="0.85" /></div>
+          <div class="mc-slider"><label>Glow <span id="mc-glow-val">1.0</span></label><input type="range" id="mc-glow" min="0" max="2" step="0.1" value="1" /></div>
+
+          <div class="mc-toggles">
+            <label class="mc-toggle"><input type="checkbox" id="mc-autorotate" /> <span>Auto-rotate</span></label>
+          </div>
+          </div><!-- /#mc-map-content -->
+        </div>
+
+        <!-- right rail: spatial box + selection dropdowns (left of the right panel) -->
+        <div class="right-rail" id="right-rail">
+        <div class="spatial-box" id="spatial-box">
+          <div class="sb-title">SPATIAL</div>
+          <div class="sb-group">
+            <label>Target area</label>
+            <div class="seg" id="target-seg">
+              <button data-target="seoul" class="active">Seoul</button>
+              <button data-target="gu">Gu</button>
+              <button data-target="dong">Dong</button>
+            </div>
+          </div>
+          <div class="sb-group">
+            <label>Granularity</label>
+            <div class="seg" id="grain-seg">
+              <button data-grain="seoul">Seoul</button>
+              <button data-grain="gu" class="active">Gu</button>
+              <button data-grain="dong">Dong</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- dropdown box (gu + dong + variables), left of the right panel, under the spatial box (same width and style) -->
+        <div class="dropdown-box" id="dropdown-box">
+          <div class="sb-title">SELECT</div>
+          <div class="sb-group">
+            <label>Gu</label>
+            <select id="dd-gu"></select>
+          </div>
+          <div class="sb-group">
+            <label>Dong</label>
+            <select id="dd-dong"></select>
+          </div>
+	        <div class="sb-group">
+            <label>Color by Variable</label>
+            <select id="dd-color"><option value="">— color by —</option></select>
+          </div>
+          <div class="sb-group">
+            <label>Height by Variable</label>
+            <select id="dd-height"><option value="">— height by —</option></select>
+          </div>
+        </div>
+        </div><!-- /#right-rail -->
+
+        <!-- quick base-layer toggles (top toolbar, right of the control panel) -->
+        <div class="map-toolbar" id="map-toolbar">
+          <button data-toolbar-layer="labels">Label</button>
+          <button data-toolbar-layer="boundary" class="on">Boundary</button>
+          <button data-toolbar-layer="roads" class="on">Road Glow</button>
+          <button data-toolbar-layer="buildings">Buildings</button>
+          <button id="mc-reset" class="tb-reset" title="Leave time-flow, back to the static view">Reset</button>
+        </div>
+
+        <!-- color legend -->
+        <div class="map-legend" id="map-legend"></div>
+        <div class="region-tooltip hidden" id="region-tooltip"></div>
+        </div><!-- /map-stage -->
+
+
+        <!-- Time-flow strip: play controls + inline temp/sales timeline -->
+        <div class="timeline" id="timeline">
+          <div class="tl-controls">
+            <button class="tl-play" id="tl-play" aria-label="Play">▶</button>
+            <div class="tl-speeds" id="tl-speeds">
+              <button data-speed="1" class="active">1×</button>
+              <button data-speed="2">2×</button>
+              <button data-speed="4">4×</button>
+            </div>
+            <button class="tl-reset" id="tl-reset">Reset</button>
+            <div class="tl-readout" id="tl-readout">Press play to sweep 2024 · temperature drives the heat glow</div>
+          </div>
+          <div class="tl-chart" id="tl-chart"></div>
+        </div>
+
+        <!-- Footer metadata bar: one-line "what am I looking at" status strip -->
+        <footer class="uhus-footer" id="uhus-footer">
+          <div class="footer-status">
+            <span class="status-dot"></span>
+            <span class="status-text">UHUS Active</span>
+          </div>
+          <div class="footer-layers">
+            <span class="meta-label">Active Layers</span>
+            <span class="layer-cluster">
+              <span class="layer-dots" id="footer-layer-dots"></span>
+              <span class="layer-more" id="footer-layer-more"></span>
+              <div class="layer-tooltip">
+                <div class="tooltip-title"><span>Active Map Layers</span><span id="footer-layer-count">0</span></div>
+                <div class="layer-list" id="footer-layer-list"></div>
+              </div>
+            </span>
+          </div>
+          <div class="footer-meta view"><span class="meta-label">View</span><span class="meta-value strong" id="footer-view">—</span></div>
+          <div class="footer-meta scope"><span class="meta-label">Scope</span><span class="meta-value" id="footer-scope">—</span></div>
+          <div class="footer-meta period"><span class="meta-label">Period</span><span class="meta-value amber" id="footer-period">2024</span></div>
+          <div class="footer-meta join"><span class="meta-label">Join</span><span class="meta-value" id="footer-join">dong_code + date</span></div>
+          <div class="footer-summary">
+            <div class="tooltip-title"><span>Current UHUS View</span><span>summary</span></div>
+            <div class="summary-grid" id="footer-summary-body"></div>
+          </div>
+        </footer>
+      </section>
+
+      <!-- Fixed Insights column: editorial-scientific charts (project + region) -->
+      <aside class="insights-col" id="insights-col">
+        <div class="ins-col-head">
+          <div class="ins-col-title">Insights</div>
+          <div class="ins-col-sub" id="ins-sub"></div>
+        </div>
+        <div class="ins-body" id="ins-body"></div>
+      </aside>
+
+      <!-- Right UHUS panel: Detail + Recommend Set tabs -->
+      <aside class="panel-host detail-mode" id="panel-host">
+        <nav class="uhus-panel-tabs">
+          <button class="uhus-panel-tab active" data-panel-tab="detail">
+            <svg viewBox="0 0 24 24"><path d="M7 4h7l3 3v13H7z"/><path d="M14 4v4h4"/><path d="M9 12h6"/><path d="M9 16h6"/></svg>
+            <span>Detail</span>
+          </button>
+          <button class="uhus-panel-tab" data-panel-tab="recommend">
+            <svg viewBox="0 0 24 24"><path d="M4 6l6-2 4 2 6-2v14l-6 2-4-2-6 2z"/><path d="M10 4v14"/><path d="M14 6v14"/></svg>
+            <span>Recommend Set</span><span class="uhus-tab-badge">3</span>
+          </button>
+        </nav>
+
+        <section class="panel-wrap">
+          <div class="choice-note"><span id="modeLabel">Project Group Panel</span><strong id="modeStrong">Clickable Lineage</strong></div>
+          <article class="panel">
+            <header class="panel-header"><div class="panel-label" id="panelLabel">Project Detail</div><div class="menu">⋯</div></header>
+            <div class="panel-body" id="panelBody"></div>
+          </article>
+        </section>
+
+        <section class="uhus-recommend-view">
+          <header class="panel-header"><div class="panel-label">Recommend Set</div><div class="menu">⋯</div></header>
+          <div class="uhus-recommend-body">
+            <div class="uhus-r-title"><span>Recommended Analysis Sets</span><span>select</span></div>
+            <div class="uhus-r-grid">
+              <article class="uhus-r-card active" data-set-id="weather-sales-compare">
+                <div class="uhus-r-head"><div class="uhus-r-icon"><svg viewBox="0 0 24 24"><path d="M4 7h7v10H4z"/><path d="M13 4h7v16h-7z"/></svg></div><div><div class="uhus-r-name">Weather × Sales Compare</div><div class="uhus-r-desc">Compare heat exposure and sales response through shared dong/date keys.</div></div><div class="uhus-r-type">compare</div></div>
+                <div class="uhus-r-pair"><span class="uhus-r-pill">Daily_Weather.csv</span><span class="uhus-r-arrow">×</span><span class="uhus-r-pill">sales.csv</span></div>
+                <div class="uhus-r-chips"><span class="uhus-r-chip primary">time-flow</span><span class="uhus-r-chip">line chart</span><span class="uhus-r-chip">scatter</span></div>
+              </article>
+              <article class="uhus-r-card" data-set-id="rhsi-context-map">
+                <div class="uhus-r-head"><div class="uhus-r-icon"><svg viewBox="0 0 24 24"><path d="M4 6l6-2 4 2 6-2v14l-6 2-4-2-6 2z"/><path d="M10 4v14"/></svg></div><div><div class="uhus-r-name">RHSI × Urban Context Map</div><div class="uhus-r-desc">Use RHSI as color and urban context variables as height or tooltip layers.</div></div><div class="uhus-r-type">3d map</div></div>
+                <div class="uhus-r-pair"><span class="uhus-r-pill">RHSI.csv</span><span class="uhus-r-arrow">×</span><span class="uhus-r-pill">Urban_Features.csv</span></div>
+                <div class="uhus-r-chips"><span class="uhus-r-chip primary">choropleth 3D</span><span class="uhus-r-chip">ranking</span><span class="uhus-r-chip">tooltip</span></div>
+              </article>
+              <article class="uhus-r-card" data-set-id="sector-rhsi-profile">
+                <div class="uhus-r-head"><div class="uhus-r-icon"><svg viewBox="0 0 24 24"><path d="M4 18V9"/><path d="M10 18V5"/><path d="M16 18v-7"/><path d="M22 18v-4"/><path d="M2 18h20"/></svg></div><div><div class="uhus-r-name">Sector Group × RHSI Profile</div><div class="uhus-r-desc">Sector profile charts from sales theme groups and RHSI.</div></div><div class="uhus-r-type">graphs</div></div>
+                <div class="uhus-r-pair"><span class="uhus-r-pill">Sales Theme Groups</span><span class="uhus-r-arrow">×</span><span class="uhus-r-pill">RHSI_retail</span></div>
+                <div class="uhus-r-chips"><span class="uhus-r-chip primary">group rings</span><span class="uhus-r-chip">profile</span><span class="uhus-r-chip">compare</span></div>
+              </article>
+            </div>
+            <div class="uhus-r-divider"></div>
+            <div class="uhus-r-title"><span>Dataset Compare Builder</span><span>2 datasets</span></div>
+            <div class="uhus-r-compare">
+              <div class="uhus-r-flow">
+                <div class="uhus-r-node"><div class="uhus-r-node-label">Dataset A</div><div class="uhus-r-node-value">Daily_Weather.csv</div></div>
+                <div class="uhus-r-x">×</div>
+                <div class="uhus-r-node"><div class="uhus-r-node-label">Dataset B</div><div class="uhus-r-node-value">sales.csv</div></div>
+              </div>
+              <div class="uhus-r-keyrow"><div class="uhus-r-key">Common keys</div><div class="uhus-r-value">dong_code + date</div></div>
+              <div class="uhus-r-keyrow"><div class="uhus-r-key">Join confidence</div><div class="uhus-r-value">High</div></div>
+              <div class="uhus-r-keyrow"><div class="uhus-r-key">Target</div><div class="uhus-r-value">heat-sales response</div></div>
+            </div>
+            <div class="uhus-r-divider"></div>
+            <div class="uhus-r-title"><span>Recommended Outputs</span><span>map / chart</span></div>
+            <div class="uhus-r-output-grid">
+              <article class="uhus-r-output"><strong>3D Map</strong><span>Extrude selected metric over dong geometry.</span><div class="tag">deck.gl</div></article>
+              <article class="uhus-r-output"><strong>Choropleth</strong><span>Color administrative dongs by selected index.</span><div class="tag">map</div></article>
+              <article class="uhus-r-output"><strong>Hot vs Mild Line</strong><span>Daily change across heat and reference days.</span><div class="tag">line</div></article>
+              <article class="uhus-r-output"><strong>Scatter Plot</strong><span>Apparent temperature vs sales response.</span><div class="tag">scatter</div></article>
+            </div>
+          </div>
+        </section>
+      </aside>
+
+    </div>
+
+  </div>
+
+</section>
+
+<script src="https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js"></script>
+<script src="https://unpkg.com/echarts-gl@2/dist/echarts-gl.min.js"></script>
+<script src="https://unpkg.com/maplibre-gl@4/dist/maplibre-gl.js"></script>
+<script src="https://unpkg.com/deck.gl@9/dist.min.js"></script>
+<script src="js/data.js"></script>
+<script src="js/map.js"></script>
+<script src="js/charts.js"></script>
+<script src="js/timeline.js"></script>
+<script src="js/panels.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>
