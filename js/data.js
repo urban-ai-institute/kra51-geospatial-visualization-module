@@ -734,6 +734,10 @@ const Atlas = {
 
   availableMapMetrics() {
     const metrics = [{ key: "RHSI_retail", label: "RHSI (heat sensitivity)", kind: "rhsi", signed: true }];
+    // Hot/mild day counts: per-dong summaries behind RHSI. Registered so the map can
+    // colour by them (gives Weather / Heat-Day Summary a static, non-animated view).
+    metrics.push({ key: "n_hot_days", label: "Extreme-heat days", kind: "count" });
+    metrics.push({ key: "n_mild_days", label: "Mild days", kind: "count" });
     URBAN_FEATURE_KEYS.forEach((k) =>
       metrics.push({ key: k, label: URBAN_FEATURE_LABELS[k], kind: "feature", signed: k === "delta_daypop" }));
     (this.industryCatalog?.top20 || []).forEach((c) => {

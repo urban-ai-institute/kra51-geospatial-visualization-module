@@ -32,6 +32,7 @@
   const LS_DATASETS = {
     sales: {
       groupMeasures: "salesGroups", baseRep: "choropleth",
+      temporal: true, timeRep: "choropleth",   // sales choropleth plays as the daily-sales sequence
       pages: [
         { key: "single", label: "Single", icon: "▪", supported: true, group: true, measures: "salesGroups", hint: "One theme's heat-sensitivity per layer, composited." },
         { key: "total", label: "Total", icon: "▣", supported: false, msg: "No total-magnitude metric on the real map yet." },
@@ -59,10 +60,65 @@
         { key: "single", label: "Single", icon: "▪", supported: true, reps: ["buildingmix", "signedcols", "divided", "choropleth", "bars", "points"], measures: "rhsiOnly", hint: "RHSI coloured by what the model explains — include/exclude features below." },
       ],
     },
+    // ---- temporal datasets: static day-counts + an animated time view (right-rail toggle) ----
+    weather: {
+      groupMeasures: "weatherVars", baseRep: "choropleth",
+      temporal: true, timeRep: "heatfield",
+      pages: [
+        { key: "single", label: "Single", icon: "▪", supported: true, group: true, measures: "weatherVars", hint: "Hot / mild day counts per dong — flip Time on for the day-by-day heat field." },
+      ],
+    },
+    heatfeature: {
+      groupMeasures: "weatherVars", baseRep: "choropleth",
+      temporal: true, timeRep: "heatfield",
+      pages: [
+        { key: "single", label: "Single", icon: "▪", supported: true, group: true, measures: "weatherVars", hint: "Heat-exposure day counts; Time plays the daily field." },
+      ],
+    },
+    // ---- remaining static feature datasets ----
+    salesfeature: {
+      groupMeasures: "salesShareVars", baseRep: "choropleth",
+      pages: [
+        { key: "single", label: "Single", icon: "▪", supported: true, group: true, measures: "salesShareVars", hint: "Retail composition shares per dong." },
+      ],
+    },
+    mobility: {
+      groupMeasures: "mobilityVars", baseRep: "choropleth",
+      pages: [
+        { key: "single", label: "Single", icon: "▪", supported: true, group: true, measures: "mobilityVars", hint: "Day/night population response — the strongest RHSI driver." },
+      ],
+    },
+    heatdays: {
+      groupMeasures: "weatherVars", baseRep: "choropleth",
+      pages: [
+        { key: "single", label: "Single", icon: "▪", supported: true, group: true, measures: "weatherVars", hint: "Qualifying hot / mild day counts behind RHSI." },
+      ],
+    },
+    // Sector Profile reads the same six sales themes as glyphs.
+    sectorprofile: {
+      groupMeasures: "salesGroups",
+      pages: [
+        { key: "across", label: "Across", icon: "▤", supported: true, group: true, glyph: true, reps: ["columns", "rings", "radial", "dominant"], measures: "salesGroups", hint: "Sector profile as per-dong glyphs." },
+      ],
+    },
+    atlas: {
+      temporal: true, timeRep: "compare",
+      pages: [
+        { key: "single", label: "Single", icon: "▪", supported: true, reps: ["dashboard", "compare", "rings"], measures: "rhsiOnly", hint: "The combined atlas overview." },
+      ],
+    },
+    // ---- base / reference layers: boundary only, no metric ----
+    dongbase: {
+      pages: [{ key: "single", label: "Base map", icon: "▫", supported: true, reps: ["boundary"], measures: null, hint: "Administrative dong / gu boundaries." }],
+    },
+    geometry: {
+      pages: [{ key: "single", label: "Base map", icon: "▫", supported: true, reps: ["boundary"], measures: null, hint: "Dong geometry base layer." }],
+    },
   };
 
   const LayerSetPanel = {
     _page: {},     // active page key per dataset (built-in key or "saved:<id>")
+    _time: {},     // { dsId: bool } — temporal toggle fallback when the engine can't report
     _appear: {},   // { dsId: { scheme } }
     _grp: {},      // { dsId: { layers: [ {id, channel, measure} ] } } — the Single group
     _saved: null,  // { dsId: [ {id,name,page,rep,measure,scheme,layers} ] }
@@ -213,8 +269,18 @@
       // group pages pick their variables per-layer in the map panel, so only non-group pages get a dropdown
       if (active && !active.group && measures.length > 1) measHTML = `<div class="ls-row-l">Variable</div>${this._measureSelect(measures, (typeof map !== "undefined" && map) ? map.colorBy : null)}`;
 
-      host.innerHTML = `<div class="ls-inner">${presetHTML}${measHTML}</div>`;
+      // temporal toggle — only for datasets that have a time representation
+      let timeHTML = "";
+      if (cfg.temporal) {
+        const on = this._isTime(dsId);
+        timeHTML = `<div class="ls-row-l">Time</div><div class="ls-seg">
+          <button class="ls-b${on ? "" : " on"}" data-ls-time="off"><i>▪</i><span>Static</span></button>
+          <button class="ls-b${on ? " on" : ""}" data-ls-time="on"><i>▶</i><span>Animate</span></button></div>`;
+      }
+
+      host.innerHTML = `<div class="ls-inner">${presetHTML}${measHTML}${timeHTML}</div>`;
       host.querySelectorAll("[data-ls-page]").forEach((b) => b.onclick = () => this._selectPage(dsId, b.dataset.lsPage));
+      host.querySelectorAll("[data-ls-time]").forEach((b) => b.onclick = () => this._setTime(dsId, b.dataset.lsTime === "on"));
       const sel = host.querySelector("[data-ls-measure]");
       if (sel) sel.onchange = () => this._applyMeasure(dsId, sel.value);
     },
@@ -281,6 +347,30 @@
     _applyActive(dsId) {
       const page = this._builtin(dsId, this._curPage(dsId));
       if (page && page.glyph) this._applyAcross(dsId); else this._applySingle(dsId);
+    },
+    // ---- temporal toggle (Weather / Sales / Heat features / Atlas) ----
+    // Truth comes from the engine when it can tell us; _time is the fallback.
+    _isTime(dsId) {
+      if (typeof map !== "undefined" && map && typeof map.isTimeMode === "function") return !!map.isTimeMode();
+      return !!this._time[dsId];
+    },
+    _setTime(dsId, on) {
+      this._time[dsId] = on;
+      if (on) this._applyTime(dsId); else this._applyStatic(dsId);
+    },
+    // ON → the dataset's time representation; applyRepresentation enters time mode itself
+    // (rt.time for heatfield/compare, or the sales daily-choropleth sequence).
+    _applyTime(dsId) {
+      if (typeof Panels === "undefined" || typeof map === "undefined" || !map) { this.sync(); return; }
+      Panels.applyRepresentation(dsId, (LS_DATASETS[dsId] || {}).timeRep || "heatfield");
+      this._applyAppearance(dsId);
+      map.render(); this._afterApply();
+    },
+    // OFF → re-apply whatever preset page is active (those paths call exitTimeMode)
+    _applyStatic(dsId) {
+      const page = this._pageByKey(dsId, this._page[dsId]);
+      if (page && page.group) this._applyActive(dsId);
+      else this._applyPage(dsId, (page && page.reps && page.reps[0]) || null);
     },
     // Single = variable-layers composited on data channels (no sector glyph).
     _applySingle(dsId) {
@@ -371,6 +461,14 @@
     _measures(kind) {
       if (kind === "salesGroups") { const S = (typeof SALES_GROUPS !== "undefined") ? SALES_GROUPS : {}; return Object.keys(S).map((k) => ({ key: "grp_" + k, label: S[k].title })); }
       if (kind === "rhsiOnly") { return [{ key: "RHSI_retail", label: "RHSI (heat sensitivity)" }]; }
+      // day counts behind RHSI — the static (non-animated) view for Weather / Heat-Day Summary
+      if (kind === "weatherVars") { return [{ key: "n_hot_days", label: "Extreme-heat days" }, { key: "n_mild_days", label: "Mild days" }]; }
+      if (kind === "mobilityVars") { return [{ key: "delta_daypop", label: "Δ Daypop (hot vs mild)" }, { key: "dnpr", label: "Day/Night Pop Ratio" }]; }
+      if (kind === "salesShareVars") {
+        const L = (typeof URBAN_FEATURE_LABELS !== "undefined") ? URBAN_FEATURE_LABELS : {};
+        return ["retail_share", "dinebev_share_all", "everyday_retail_share_all", "general_share_all", "large_format_share_all"]
+          .map((k) => ({ key: k, label: L[k] || k }));
+      }
       // Urban context: the four theme groups first, then every individual urban feature.
       if (kind === "contextVars") {
         const C = (typeof CONTEXT_GROUPS !== "undefined") ? CONTEXT_GROUPS : {};
@@ -390,19 +488,25 @@
     // resolve a page key (built-in or "saved:<id>") → a page-like object
     _pageByKey(dsId, key) {
       if (key && key.indexOf("saved:") === 0) {
-        const s = this._savedById(dsId, key.slice(6)); if (!s) return this._builtin(dsId, "single");
-        const base = this._builtin(dsId, s.page) || {};
+        const s = this._savedById(dsId, key.slice(6)); if (!s) return this._firstPage(dsId);
+        const base = this._builtin(dsId, s.page) || this._firstPage(dsId) || {};
         // carry the base page's group/glyph flags so saved presets take the same code paths
         return { key: s.page, label: s.name, icon: "★", supported: base.supported !== false, reps: base.reps,
           measures: base.measures, hint: base.hint, group: base.group, glyph: base.glyph, _saved: s };
       }
-      return this._builtin(dsId, key);
+      return this._builtin(dsId, key) || this._firstPage(dsId);
+    },
+    // first page a dataset can actually show (not every dataset has a "single" page)
+    _firstPage(dsId) {
+      const pages = (LS_DATASETS[dsId] && LS_DATASETS[dsId].pages) || [];
+      return pages.find((p) => p.supported !== false) || pages[0] || null;
     },
     _inferPage(dsId) {
       const sv = (typeof map !== "undefined" && map) ? map.sectorView : null;
       const glyphPage = (LS_DATASETS[dsId].pages || []).find((p) => p.glyph);
       if (glyphPage && sv && (glyphPage.reps || []).includes(sv)) return glyphPage.key;
-      return "single";
+      const first = this._firstPage(dsId);
+      return first ? first.key : "single";
     },
 
     // ---- engine actions ----
@@ -410,6 +514,7 @@
       const page = this._pageByKey(dsId, key);
       if (!page) return;
       this._page[dsId] = key;
+      this._time[dsId] = false;   // choosing a static preset leaves time mode
       if (page.supported === false) { this.sync(); return; }
       if (page._saved) {   // apply a full saved preset
         const s = page._saved;
@@ -491,7 +596,7 @@
         const s = this._savedById(dsId, activeKey.slice(6));
         if (s) { if (s.appear) this._appear[dsId] = Object.assign(this._appear[dsId], s.appear); else if (s.scheme) this._appear[dsId].scheme = s.scheme; this._selectPage(dsId, activeKey); return; }
       }
-      const page = this._builtin(dsId, activeKey) || this._builtin(dsId, "single");
+      const page = this._builtin(dsId, activeKey) || this._firstPage(dsId);
       if (page.group) {
         this._grp[dsId][page.key] = page.glyph
           ? { rep: (page.reps && page.reps[0]) || "rings", layers: [] }
