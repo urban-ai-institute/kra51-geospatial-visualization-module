@@ -524,70 +524,11 @@ function initControlPanel() {
   const metrics = Atlas.availableMapMetrics();
   const opts = metrics.map((m) => `<option value="${m.key}">${m.label}</option>`).join("");
 
-  // presets
-  document.querySelectorAll("#mc-presets button").forEach((btn) => {
-    btn.addEventListener("click", () => { exitTimeMode(); map.preset(btn.dataset.preset); syncLayerChecks(); syncToolbar(); updateLegend(); });
-  });
-
-  // per-layer toggles (data layers) — these aren't drawn in time mode, so a toggle
-  // auto-leaves time mode and applies right away (no manual Reset needed).
-  const OSM_LAYERS = new Set(["nature", "transit", "amenity"]);
-  document.querySelectorAll('#mc-layers input[data-layer]').forEach((cb) => {
-    cb.addEventListener("change", () => {
-      exitTimeMode();
-      const layer = cb.dataset.layer;
-      map.setLayer(layer, cb.checked);
-      syncToolbar(); updateLegend();
-      // Optional OSM context layers are fetched on first enable (not at startup).
-      if (cb.checked && OSM_LAYERS.has(layer)) {
-        Atlas.ensureOSM(layer).then(() => { map._staticCache = null; map.render(); updateLegend(); });
-      }
-    });
-  });
-
-  // Every data layer has independent color and height/size metrics. The right-rail
-  // Color/Height selectors clear these overrides and unify one channel at a time.
-  const VAR_LAYERS = ["pointCore", "pointHalo", "influence", "heatmap", "choropleth", "columns", "hexbin", "dotField"];
-  const RADIUS_LAYERS = new Set(["pointCore", "pointHalo", "influence", "heatmap", "columns", "dotField"]);
-  const stop = (e) => e.stopPropagation(); // keep clicks off the checkbox label
-  VAR_LAYERS.forEach((layer) => {
-    const row = document.querySelector(`#mc-layers .layer-row input[data-layer="${layer}"]`)?.closest(".layer-row");
-    if (!row) return;
-    const ctrls = document.createElement("div");
-    ctrls.className = "lyr-ctrls"; ctrls.addEventListener("click", stop);
-    const addVariableSelect = (channel, placeholder, values, setter) => {
-      const sel = document.createElement("select");
-      sel.className = `lyr-var lyr-${channel}`;
-      sel.dataset.varLayer = layer;
-      sel.dataset.varChannel = channel;
-      sel.innerHTML = `<option value="">— ${placeholder} —</option>` + opts;
-      sel.value = values[layer] || "";
-      sel.addEventListener("change", () => {
-        exitTimeMode();
-        map[setter](layer, sel.value);
-        updateLegend();
-      });
-      ctrls.appendChild(sel);
-    };
-    addVariableSelect("color", "color by", map.layerVar, "setLayerVar");
-    addVariableSelect("height", "height by", map.layerHeightVar, "setLayerHeightVar");
-    // per-layer radius slider (the common Radius slider still scales everything)
-    if (RADIUS_LAYERS.has(layer)) {
-      const rng = document.createElement("input");
-      rng.type = "range"; rng.className = "lyr-radius"; rng.title = "Layer radius";
-      rng.min = "0.3"; rng.max = "3"; rng.step = "0.1"; rng.value = String(map.layerRadius[layer] != null ? map.layerRadius[layer] : 1);
-      rng.addEventListener("input", () => map.setLayerRadius(layer, +rng.value));
-      ctrls.appendChild(rng);
-    }
-    row.appendChild(ctrls);
-  });
-  const syncLayerVarSelects = () => {
-    document.querySelectorAll("#mc-layers select.lyr-var").forEach((s) => {
-      const values = s.dataset.varChannel === "height" ? map.layerHeightVar : map.layerVar;
-      s.value = values[s.dataset.varLayer] || "";
-    });
-  };
-  window.syncLayerVarSelects = syncLayerVarSelects;
+  // NOTE: the PRESETS buttons, the per-layer "Data layers" checkboxes and their
+  // per-layer colour/height/radius controls all lived here. They were removed with
+  // that markup — the Layer-Set editor now owns layer composition (each layer picks a
+  // representation + variable) and its presets replace the old view presets. The OSM
+  // lazy-fetch those checkboxes used moved into the toolbar handler below.
 
   // Granularity segmented control (Seoul / Gu / Dong) — data aggregation grain.
   document.querySelectorAll("#grain-seg button").forEach((btn) => {
@@ -612,24 +553,28 @@ function initControlPanel() {
   // Toolbar Reset: leave time-flow and return to the static view.
   document.getElementById("mc-reset").addEventListener("click", () => exitTimeMode());
 
-  // Top toolbar: quick base-layer toggles, mirrored to the layer checkboxes.
+  // Top toolbar: quick base-layer + OSM context toggles.
+  const OSM_LAYERS = new Set(["nature", "transit", "amenity"]);
   document.querySelectorAll("#map-toolbar button[data-toolbar-layer]").forEach((btn) => {
     btn.addEventListener("click", () => {
       const layer = btn.dataset.toolbarLayer;
       const on = !map.layers[layer];
+      // OSM context layers aren't drawn in time mode and are fetched on first enable
+      // (not at startup), so they need the same handling the old layer list gave them.
+      if (OSM_LAYERS.has(layer)) exitTimeMode();
       map.setLayer(layer, on);
-      const cb = document.querySelector(`#mc-layers input[data-layer="${layer}"]`);
-      if (cb) cb.checked = on;
       btn.classList.toggle("on", on);
+      if (on && OSM_LAYERS.has(layer)) {
+        Atlas.ensureOSM(layer).then(() => { map._staticCache = null; map.render(); updateLegend(); });
+      }
       updateLegend();
     });
   });
   syncToolbar();
 
-  bindSlider("mc-elevation", (v) => map.setElevationScale(v), (v) => v.toFixed(1));
-  bindSlider("mc-radius", (v) => map.setRadiusScale(v), (v) => v.toFixed(1));
-  // Opacity + Glow are owned by the Layer-Set Appearance section (and saved with presets),
-  // so they are no longer duplicated here. bindSlider no-ops if the element is absent.
+  // Elevation / Radius / Opacity / Glow are owned by the Layer-Set Appearance section
+  // (and saved with presets), so they are no longer duplicated here. Panels._applyView
+  // still drives the map setters per representation; it is null-safe about the DOM.
 
   document.getElementById("mc-autorotate").addEventListener("change", (e) => map.setAutoRotate(e.target.checked));
 
@@ -654,12 +599,9 @@ function initControlPanel() {
   });
 }
 
-// Reflect the map's layer state back onto the checkboxes (after a preset click).
-function syncLayerChecks() {
-  document.querySelectorAll('#mc-layers input[data-layer]').forEach((cb) => {
-    cb.checked = !!map.layers[cb.dataset.layer];
-  });
-}
+// The layer checkboxes are gone (the Layer-Set editor owns composition), but callers
+// still invoke this behind a typeof guard, so keep it as a harmless no-op.
+function syncLayerChecks() {}
 // Reflect map layer state onto the top toolbar pills.
 function syncToolbar() {
   document.querySelectorAll("#map-toolbar button[data-toolbar-layer]").forEach((btn) => {
@@ -1106,17 +1048,10 @@ function refreshVariableDropdowns() {
   if (typeof Atlas === "undefined" || !map) return;
   const scoped = contextMetrics(false);                     // right-rail SELECT: always dataset-scoped
   const selHTML = metricOptionsGroupedHTML(scoped);         // grouped into <optgroup> by theme
-  const mapMetrics = contextMetrics(true);                  // map panel: unfiltered in Compare
-  const mapHTML = metricOptionsHTML(mapMetrics);
   const empty = scoped.length === 0;
+  // dd-color / dd-height are the fallback for any dataset without a Layer-Set config
   setSelectOptions(document.getElementById("dd-color"), `<option value="">${empty ? "— no mappable variables —" : "— color by —"}</option>` + selHTML, map.colorBy);
   setSelectOptions(document.getElementById("dd-height"), `<option value="">${empty ? "— no mappable variables —" : "— height by —"}</option>` + selHTML, map.heightBy);
-  document.querySelectorAll("#mc-layers select.lyr-var").forEach((s) => {
-    const cur = s.value;
-    const placeholder = s.dataset.varChannel === "height" ? "height by" : "color by";
-    s.innerHTML = `<option value="">— ${placeholder} —</option>` + mapHTML;
-    s.value = mapMetrics.some((m) => m.key === cur) ? cur : "";
-  });
   if (typeof LayerSetPanel !== "undefined") LayerSetPanel.sync(); // semantic panel for Sales/RHSI (hides the dropdowns above for those)
   if (typeof Insights !== "undefined") Insights.scheduleRender();
   if (typeof syncTimeline === "function") syncTimeline(); // dataset gating for the time-series

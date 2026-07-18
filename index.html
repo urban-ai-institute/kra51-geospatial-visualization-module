@@ -88,9 +88,8 @@
                DATA LAYERS removed: every visual design is now a representation type, picked
                per layer in the editor above. OSM context overlays live in the map-toolbar. -->
 
-          <div class="mc-slider"><label>Elevation <span id="mc-elevation-val">1.0</span></label><input type="range" id="mc-elevation" min="0" max="3" step="0.1" value="1" /></div>
-          <div class="mc-slider"><label>Radius <span id="mc-radius-val">1.0</span></label><input type="range" id="mc-radius" min="0.3" max="3" step="0.1" value="1" /></div>
-          <!-- Opacity + Glow live in the Layer-Set Appearance section (saved per preset) -->
+          <!-- Elevation / Radius / Opacity / Glow all live in the Layer-Set Appearance
+               section now, so they are saved per preset and can't drift out of sync. -->
 
           <div class="mc-title">SELECTED DONG</div>
           <div class="seg" id="mc-selstyle">

@@ -159,6 +159,8 @@
         scheme: (typeof map !== "undefined" && map && map.colorScheme) || "default",
         opacity: (typeof map !== "undefined" && map && map.opacity != null) ? map.opacity : 0.85,
         glow: (typeof map !== "undefined" && map && map.glow != null) ? map.glow : 1,
+        elevation: (typeof map !== "undefined" && map && map.elevationScale != null) ? map.elevationScale : 1,
+        radius: (typeof map !== "undefined" && map && map.radiusScale != null) ? map.radiusScale : 1,
         colorScale: "quantile", outline: 1, size: 1, label: false };
       if (!this._grp[dsId]) {   // one group per group-page (glyph pages start with no extra layers)
         const g = {};
@@ -431,6 +433,9 @@
       if (typeof map.setColorScheme === "function") map.setColorScheme(a.scheme);
       if (a.opacity != null) map.opacity = +a.opacity;
       if (a.glow != null) map.glow = +a.glow;
+      // re-assert after applyRepresentation, which pushes the representation's own slider values
+      if (a.elevation != null && map.setElevationScale) map.setElevationScale(+a.elevation);
+      if (a.radius != null && map.setRadiusScale) map.setRadiusScale(+a.radius);
     },
     _setAppear(dsId, field, val, isSliderLive) {
       const a = this._appear[dsId]; if (!a) return;
@@ -439,6 +444,8 @@
         // use the engine's own setters so the map re-renders the same way the old sliders did
         if (field === "opacity") { if (map.setOpacity) map.setOpacity(+val); else { map.opacity = +val; if (map.render) map.render(); } }
         else if (field === "glow") { if (map.setGlow) map.setGlow(+val); else { map.glow = +val; if (map.render) map.render(); } }
+        else if (field === "elevation") { if (map.setElevationScale) map.setElevationScale(+val); }
+        else if (field === "radius") { if (map.setRadiusScale) map.setRadiusScale(+val); }
         // outline / size / label / colorScale are stored only (real map can't drive them yet)
       }
       if (!isSliderLive) this.sync();   // reflect discrete changes (theme/scale/label); skip during slider drag
@@ -463,6 +470,8 @@
       const scales = ["linear", "quantize", "quantile"].map((s) => `<button class="ls-b3${a.colorScale === s ? " on" : ""}" data-ls-scale="${s}">${s.charAt(0).toUpperCase() + s.slice(1)}</button>`).join("");
       return `<div class="ls-row-l">Appearance</div><div class="ls-app">
         <div class="ls-arow"><span>Color theme</span><div class="ls-swrow">${themes}</div></div>
+        <label class="ls-arow"><span>Elevation</span><input type="range" class="ls-mini" data-ls-ap="elevation" min="0" max="3" step="0.1" value="${a.elevation}"></label>
+        <label class="ls-arow"><span>Radius</span><input type="range" class="ls-mini" data-ls-ap="radius" min="0.3" max="3" step="0.1" value="${a.radius}"></label>
         <label class="ls-arow"><span>Opacity</span><input type="range" class="ls-mini" data-ls-ap="opacity" min="0.2" max="1" step="0.05" value="${a.opacity}"></label>
         <label class="ls-arow"><span>Glow</span><input type="range" class="ls-mini" data-ls-ap="glow" min="0" max="2" step="0.1" value="${a.glow}"></label>
         <div class="ls-arow ls-dim"><span>Color scale</span><div class="ls-seg ls-scaleseg">${scales}</div><span class="ls-coming">coming</span></div>
@@ -621,7 +630,7 @@
     },
     _reset(dsId) {
       const activeKey = this._page[dsId];
-      this._appear[dsId] = { scheme: "default", opacity: 0.85, glow: 1, colorScale: "quantile", outline: 1, size: 1, label: false };
+      this._appear[dsId] = { scheme: "default", opacity: 0.85, glow: 1, elevation: 1, radius: 1, colorScale: "quantile", outline: 1, size: 1, label: false };
       if (activeKey.indexOf("saved:") === 0) {   // revert edits to the saved preset's stored config
         const s = this._savedById(dsId, activeKey.slice(6));
         if (s) { if (s.appear) this._appear[dsId] = Object.assign(this._appear[dsId], s.appear); else if (s.scheme) this._appear[dsId].scheme = s.scheme; this._selectPage(dsId, activeKey); return; }
