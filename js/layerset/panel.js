@@ -17,12 +17,17 @@
     { key: "viridis", label: "Viridis", grad: "linear-gradient(90deg,#281e46,#2da096,#f0e25c)" },
     { key: "magenta", label: "Magenta", grad: "linear-gradient(90deg,#120e18,#b43c96,#ff6ec8)" },
   ];
-  // "Single" is a GROUP of variable-layers. Each layer renders on its own map
-  // channel so several show at once (composite): colour / height / points.
+  // A GROUP holds variable-layers; each layer picks a DESIGN (its representation),
+  // which maps to real map layers. Different designs composite together.
+  // This replaces the old "Data layers" checkboxes — the designs live here now.
   const CHANNELS = [
-    { key: "color", label: "Color", icon: "▦", layer: "choropleth" },
-    { key: "height", label: "Height", icon: "▮", layer: "columns" },
-    { key: "points", label: "Points", icon: "⊙", layer: "pointCore" },
+    { key: "color", label: "Color", icon: "▦", layers: ["choropleth"] },
+    { key: "height", label: "Height", icon: "▮", layers: ["columns"], height: true },
+    { key: "points", label: "Points", icon: "⊙", layers: ["pointCore", "pointHalo"] },
+    { key: "heatmap", label: "Heatmap", icon: "◍", layers: ["heatmap"] },
+    { key: "hexbin", label: "Hexbin", icon: "⬡", layers: ["hexbin"] },
+    { key: "dots", label: "Dot field", icon: "⋰", layers: ["dotField"] },
+    { key: "rings", label: "Value rings", icon: "◎", layers: ["influence"] },
   ];
 
   // Built-in preset pages per dataset. supported=false → shown but greyed (real map can't render yet).
@@ -43,7 +48,7 @@
     },
     rhsi: {
       pages: [
-        { key: "single", label: "Single", icon: "▪", supported: true, reps: ["choropleth", "bars", "buildingmix", "points"], measures: "rhsiOnly", hint: "The retail heat-sensitivity index per dong." },
+        { key: "single", label: "Single", icon: "▪", supported: true, reps: ["choropleth", "bars", "buildingmix", "points", "heatmap", "hexbin", "dotfield", "valuerings"], measures: "rhsiOnly", hint: "The retail heat-sensitivity index per dong." },
       ],
     },
     // Urban Features — composite group of urban-context variable-layers (same model as Sales Single).
@@ -238,7 +243,7 @@
       if (sel) sel.onchange = () => this._applyMeasure(dsId, sel.value);
       // group layer controls (Single + Across)
       host.querySelectorAll("[data-ls-glyph]").forEach((b) => b.onclick = () => this._setGlyph(dsId, b.dataset.lsGlyph));
-      host.querySelectorAll("[data-ls-lchan]").forEach((b) => b.onclick = () => this._setLayerField(dsId, b.dataset.lsLchan, "channel", b.dataset.ch));
+      host.querySelectorAll("select[data-ls-lchan]").forEach((s) => s.onchange = () => this._setLayerField(dsId, s.dataset.lsLchan, "channel", s.value));
       host.querySelectorAll("[data-ls-lvar]").forEach((s) => s.onchange = () => this._setLayerField(dsId, s.dataset.lsLvar, "measure", s.value));
       host.querySelectorAll("[data-ls-ldel]").forEach((b) => b.onclick = () => this._removeLayer(dsId, b.dataset.lsLdel));
       const addL = host.querySelector("[data-ls-addlayer]"); if (addL) addL.onclick = () => this._addLayer(dsId);
@@ -296,8 +301,8 @@
     _layerRowsHTML(dsId, grp, minLayers) {
       const measures = this._measures(this._groupMeasures(dsId));
       return grp.layers.map((L) => `<div class="ls-layer">
-        <div class="ls-seg ls-lchan">${CHANNELS.map((c) => `<button class="ls-b2${L.channel === c.key ? " on" : ""}" data-ls-lchan="${L.id}" data-ch="${c.key}" title="${c.label}"><i>${c.icon}</i></button>`).join("")}</div>
-        <select class="ls-select ls-lvar" data-ls-lvar="${L.id}">${measures.map((m) => `<option value="${m.key}"${m.key === L.measure ? " selected" : ""}>${m.label}</option>`).join("")}</select>
+        <select class="ls-select ls-lchan" data-ls-lchan="${L.id}" title="Representation">${CHANNELS.map((c) => `<option value="${c.key}"${L.channel === c.key ? " selected" : ""}>${c.icon}  ${c.label}</option>`).join("")}</select>
+        <select class="ls-select ls-lvar" data-ls-lvar="${L.id}" title="Variable">${measures.map((m) => `<option value="${m.key}"${m.key === L.measure ? " selected" : ""}>${m.label}</option>`).join("")}</select>
         <button class="ls-lx" data-ls-ldel="${L.id}"${grp.layers.length <= minLayers ? " disabled" : ""} title="Remove layer">×</button></div>`).join("");
     },
     _groupEditorHTML(dsId, pageKey, label) {
@@ -338,9 +343,13 @@
       const on = {}; let firstColor = null;
       (layers || []).forEach((L) => {
         if (!L.measure || (typeof Atlas !== "undefined" && !Atlas.metricSpec(L.measure))) return;
-        if (L.channel === "color") { on.choropleth = true; map.layerVar.choropleth = L.measure; if (!firstColor) firstColor = L.measure; }
-        else if (L.channel === "height") { on.columns = true; map.layerVar.columns = L.measure; map.layerHeightVar.columns = L.measure; }
-        else if (L.channel === "points") { on.pointCore = true; on.pointHalo = true; map.layerVar.pointCore = L.measure; map.layerVar.pointHalo = L.measure; }
+        const ch = CHANNELS.find((c) => c.key === L.channel) || CHANNELS[0];
+        ch.layers.forEach((ml) => {
+          on[ml] = true;
+          map.layerVar[ml] = L.measure;
+          if (ch.height) map.layerHeightVar[ml] = L.measure;
+        });
+        if (ch.key === "color" && !firstColor) firstColor = L.measure;
       });
       return { on: on, firstColor: firstColor };
     },

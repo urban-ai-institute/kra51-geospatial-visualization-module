@@ -419,6 +419,8 @@ html, body {
   padding: 6px 11px; cursor: pointer; transition: all 0.15s ease; white-space: nowrap;
   text-align: center;
 }
+/* divider between base layers and the OSM context overlays */
+.map-toolbar .tb-sep { height: 1px; background: var(--panel-border); margin: 3px 1px; flex: none; }
 .map-toolbar button:hover { color: var(--text); border-color: rgba(255,255,255,0.2); }
 .map-toolbar button.on {
   color: #fff; border-color: rgba(125,167,255,0.55);
@@ -1299,12 +1301,8 @@ html, body {
 /* Single = group of variable-layers (composite) */
 .ls-layers { display: flex; flex-direction: column; gap: 6px; }
 .ls-layer { display: flex; align-items: center; gap: 6px; }
-.ls-lchan { flex: none; }
-.ls-b2 { width: 26px; height: 28px; display: flex; align-items: center; justify-content: center;
-  background: rgba(255,255,255,0.03); border: 1px solid var(--panel-border); border-radius: 6px; color: var(--muted); cursor: pointer; }
-.ls-b2 i { font-style: normal; font-size: 12px; }
-.ls-b2:hover { color: var(--text); border-color: rgba(255,255,255,0.2); }
-.ls-b2.on { color: #fff; border-color: rgba(125,167,255,0.6); background: rgba(125,167,255,0.16); box-shadow: 0 0 12px rgba(125,167,255,0.2); }
+/* each layer row: representation (design) + variable + remove */
+.ls-lchan { flex: 0 0 104px; min-width: 0; }
 .ls-lvar { flex: 1; min-width: 0; }
 .ls-lx { flex: none; width: 24px; height: 28px; border-radius: 6px; border: 1px solid var(--panel-border);
   background: rgba(255,255,255,0.03); color: var(--muted); cursor: pointer; font-size: 14px; }

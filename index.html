@@ -89,24 +89,10 @@
             <button data-preset="Data Points">Data Points</button>
           </div>
 
-          <div class="mc-title">DATA LAYERS</div>
-          <div class="layer-list" id="mc-layers">
-            <label class="layer-row"><input type="checkbox" data-layer="pointCore" checked /><span class="lyr-dot" style="background:#FFC857"></span><span>Point Core</span></label>
-            <label class="layer-row"><input type="checkbox" data-layer="pointHalo" checked /><span class="lyr-dot" style="background:#FF9D42"></span><span>Point Halo</span></label>
-            <label class="layer-row"><input type="checkbox" data-layer="influence" /><span class="lyr-dot" style="background:#FF7A33"></span><span>Value Rings</span></label>
-            <label class="layer-row"><input type="checkbox" data-layer="heatmap" /><span class="lyr-dot" style="background:#F5A45D"></span><span>Heatmap</span></label>
-
-            <div class="mc-subtitle">MORE</div>
-            <label class="layer-row"><input type="checkbox" data-layer="choropleth" /><span class="lyr-dot" style="background:#FF3B30"></span><span>Choropleth</span></label>
-            <label class="layer-row"><input type="checkbox" data-layer="columns" /><span class="lyr-dot" style="background:#FFB86B"></span><span>3D Columns</span></label>
-            <label class="layer-row"><input type="checkbox" data-layer="hexbin" /><span class="lyr-dot" style="background:#FFD873"></span><span>Hexbin</span></label>
-            <label class="layer-row"><input type="checkbox" data-layer="dotField" /><span class="lyr-dot" style="background:#FFE08A"></span><span>Dot Field</span></label>
-
-            <div class="mc-subtitle">URBAN ENV (OSM)</div>
-            <label class="layer-row"><input type="checkbox" data-layer="nature" /><span class="lyr-dot" style="background:#48965C"></span><span>Nature · parks &amp; water</span></label>
-            <label class="layer-row"><input type="checkbox" data-layer="transit" /><span class="lyr-dot" style="background:#96D7FF"></span><span>Transit · subway &amp; bus</span></label>
-            <label class="layer-row"><input type="checkbox" data-layer="amenity" /><span class="lyr-dot" style="background:#E45C91"></span><span>Amenities · facilities</span></label>
-          </div>
+          <!-- DATA LAYERS removed: every visual design is now a representation type
+               (picked per layer in the Layer-Set editor above, or via REPRESENTATION).
+               The OSM context overlays moved to the top map-toolbar, since they are
+               additive context rather than a representation of the data. -->
 
           <div class="mc-slider"><label>Elevation <span id="mc-elevation-val">1.0</span></label><input type="range" id="mc-elevation" min="0" max="3" step="0.1" value="1" /></div>
           <div class="mc-slider"><label>Radius <span id="mc-radius-val">1.0</span></label><input type="range" id="mc-radius" min="0.3" max="3" step="0.1" value="1" /></div>
@@ -169,12 +155,17 @@
         </div>
         </div><!-- /#right-rail -->
 
-        <!-- quick base-layer toggles (top toolbar, right of the control panel) -->
+        <!-- quick base + context toggles (top toolbar, right of the control panel).
+             These are additive overlays, so they stay checkboxes rather than representations. -->
         <div class="map-toolbar" id="map-toolbar">
           <button data-toolbar-layer="labels">Label</button>
           <button data-toolbar-layer="boundary" class="on">Boundary</button>
           <button data-toolbar-layer="roads" class="on">Road Glow</button>
           <button data-toolbar-layer="buildings">Buildings</button>
+          <div class="tb-sep"></div>
+          <button data-toolbar-layer="nature" title="Parks &amp; water (OSM)">Nature</button>
+          <button data-toolbar-layer="transit" title="Subway &amp; bus (OSM)">Transit</button>
+          <button data-toolbar-layer="amenity" title="Facilities (OSM)">Amenities</button>
           <button id="mc-reset" class="tb-reset" title="Leave time-flow, back to the static view">Reset</button>
         </div>
 
