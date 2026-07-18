@@ -436,8 +436,9 @@
       const a = this._appear[dsId]; if (!a) return;
       a[field] = field === "label" ? !!val : (field === "colorScale" ? val : +val);
       if (typeof map !== "undefined" && map) {
-        if (field === "opacity") { map.opacity = +val; if (map.render) map.render(); }
-        else if (field === "glow") { map.glow = +val; if (map.render) map.render(); }
+        // use the engine's own setters so the map re-renders the same way the old sliders did
+        if (field === "opacity") { if (map.setOpacity) map.setOpacity(+val); else { map.opacity = +val; if (map.render) map.render(); } }
+        else if (field === "glow") { if (map.setGlow) map.setGlow(+val); else { map.glow = +val; if (map.render) map.render(); } }
         // outline / size / label / colorScale are stored only (real map can't drive them yet)
       }
       if (!isSliderLive) this.sync();   // reflect discrete changes (theme/scale/label); skip during slider drag

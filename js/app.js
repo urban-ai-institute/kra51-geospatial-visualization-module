@@ -628,8 +628,8 @@ function initControlPanel() {
 
   bindSlider("mc-elevation", (v) => map.setElevationScale(v), (v) => v.toFixed(1));
   bindSlider("mc-radius", (v) => map.setRadiusScale(v), (v) => v.toFixed(1));
-  bindSlider("mc-opacity", (v) => { map.setOpacity(v); }, (v) => v.toFixed(2));
-  bindSlider("mc-glow", (v) => map.setGlow(v), (v) => v.toFixed(1));
+  // Opacity + Glow are owned by the Layer-Set Appearance section (and saved with presets),
+  // so they are no longer duplicated here. bindSlider no-ops if the element is absent.
 
   document.getElementById("mc-autorotate").addEventListener("change", (e) => map.setAutoRotate(e.target.checked));
 
@@ -690,6 +690,7 @@ function setCameraMode(mode) {
 
 function bindSlider(id, apply, fmt) {
   const el = document.getElementById(id);
+  if (!el) return;   // slider may not exist (e.g. opacity/glow now live in the Layer-Set Appearance)
   const out = document.getElementById(id + "-val");
   el.addEventListener("input", () => { const v = +el.value; apply(v); if (out) out.textContent = fmt(v); });
 }

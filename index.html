@@ -82,22 +82,15 @@
             <button data-mode="3d" class="active">3D</button>
             <button data-mode="2d">2D</button>
           </div>
-          <div class="mc-title">PRESETS</div>
-          <div class="seg" id="mc-presets">
-            <button data-preset="Night City">Night City</button>
-            <button data-preset="Heat Field">Heat Field</button>
-            <button data-preset="Data Points">Data Points</button>
-          </div>
-
-          <!-- DATA LAYERS removed: every visual design is now a representation type
-               (picked per layer in the Layer-Set editor above, or via REPRESENTATION).
-               The OSM context overlays moved to the top map-toolbar, since they are
-               additive context rather than a representation of the data. -->
+          <!-- PRESETS removed: they overwrote map.layers wholesale, clobbering whatever the
+               Layer-Set editor had composited (and left the editor showing stale layers).
+               The Layer-Set preset pages + Save/Reset supersede them.
+               DATA LAYERS removed: every visual design is now a representation type, picked
+               per layer in the editor above. OSM context overlays live in the map-toolbar. -->
 
           <div class="mc-slider"><label>Elevation <span id="mc-elevation-val">1.0</span></label><input type="range" id="mc-elevation" min="0" max="3" step="0.1" value="1" /></div>
           <div class="mc-slider"><label>Radius <span id="mc-radius-val">1.0</span></label><input type="range" id="mc-radius" min="0.3" max="3" step="0.1" value="1" /></div>
-          <div class="mc-slider"><label>Opacity <span id="mc-opacity-val">0.85</span></label><input type="range" id="mc-opacity" min="0.2" max="1" step="0.05" value="0.85" /></div>
-          <div class="mc-slider"><label>Glow <span id="mc-glow-val">1.0</span></label><input type="range" id="mc-glow" min="0" max="2" step="0.1" value="1" /></div>
+          <!-- Opacity + Glow live in the Layer-Set Appearance section (saved per preset) -->
 
           <div class="mc-title">SELECTED DONG</div>
           <div class="seg" id="mc-selstyle">
