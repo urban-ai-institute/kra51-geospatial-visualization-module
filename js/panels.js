@@ -274,13 +274,15 @@ const REP_TYPES = {
 };
 // Each dataset's Representation menu — first entry is the default (recommended) view.
 const DATASET_REPS = {
-  weather:      ["heatfield", "compare"],
-  heatfeature:  ["heatfield", "compare"],
-  sales:        ["rings", 'choropleth', "radial", "columns", "dominant", "compare"],
+  // Static designs are listed alongside the time views so a dataset can be shown
+  // without animating (applyRepresentation rejects any rep missing from this list).
+  weather:      ["heatfield", "compare", "choropleth", "bars", "points", "heatmap", "hexbin", "dotfield", "valuerings"],
+  heatfeature:  ["heatfield", "compare", "choropleth", "bars", "points", "heatmap", "hexbin", "dotfield", "valuerings"],
+  sales:        ["rings", 'choropleth', "radial", "columns", "dominant", "compare", "bars", "points", "heatmap", "hexbin", "dotfield", "valuerings"],
   sectorprofile:["columns", "rings", "radial", "dominant"],
   rhsi:         ["buildingmix", "choropleth", "bars", "points", "heatmap", "hexbin", "dotfield", "valuerings"],
   shap:         ["buildingmix", "signedcols", "columns", "divided",  "dominant", "rings", "radial", "choropleth", "bars", "points"],
-  context:      ["choropleth", "columns", "divided", "buildingmix", "dominant", "rings", "radial", "bars", "points"],
+  context:      ["choropleth", "columns", "divided", "buildingmix", "dominant", "rings", "radial", "bars", "points", "heatmap", "hexbin", "dotfield", "valuerings"],
   mobility:     ["choropleth", "bars", "points", "heatmap", "hexbin", "dotfield", "valuerings"],
   salesfeature: ["choropleth", "bars", "points", "heatmap", "hexbin", "dotfield", "valuerings"],
   heatdays:     ["choropleth", "bars", "heatmap", "hexbin", "dotfield", "valuerings"],

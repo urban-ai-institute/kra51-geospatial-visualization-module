@@ -30,8 +30,17 @@
     { key: "rings", label: "Value rings", icon: "◎", layers: ["influence"] },
   ];
 
+  // Every design a single variable can take (each maps to a REP_TYPES entry).
+  const DESIGN_REPS = ["choropleth", "bars", "points", "heatmap", "hexbin", "dotfield", "valuerings"];
+  // "Compare" = show several variables at once, each on its own design. This is the
+  // composite group; Single deliberately stays ONE variable.
+  const comparePage = (measures) => ({ key: "comparison", label: "Compare", icon: "⇄", supported: true,
+    group: true, measures: measures, hint: "Several variables at once — each on its own design." });
+  const singlePage = (measures, hint) => ({ key: "single", label: "Single", icon: "▪", supported: true,
+    reps: DESIGN_REPS, measures: measures, hint: hint });
+
   // Built-in preset pages per dataset. supported=false → shown but greyed (real map can't render yet).
-  //   group:true  → the page is a composite group of variable-layers (colour/height/points channels)
+  //   group:true  → the page is a composite group of variable-layers (one design each)
   //   glyph:true  → the group also carries the six-theme sector glyph (Sales "Across")
   // groupMeasures/baseRep parameterize the group engine so it isn't Sales-specific.
   const LS_DATASETS = {
@@ -39,11 +48,11 @@
       groupMeasures: "salesGroups", baseRep: "choropleth",
       temporal: true, timeRep: "choropleth",   // sales choropleth plays as the daily-sales sequence
       pages: [
-        { key: "single", label: "Single", icon: "▪", supported: true, group: true, measures: "salesGroups", hint: "One theme's heat-sensitivity per layer, composited." },
+        singlePage("salesGroups", "One theme's heat-sensitivity."),
         { key: "total", label: "Total", icon: "▣", supported: false, msg: "No total-magnitude metric on the real map yet." },
         { key: "across", label: "Across", icon: "▤", supported: true, group: true, glyph: true, reps: ["rings", "columns", "radial", "dominant"], measures: "salesGroups", hint: "All six sales themes at once, as per-dong glyphs." },
         { key: "within", label: "Within", icon: "⊞", supported: false, msg: "Per-group view is coming to the real map." },
-        { key: "comparison", label: "Compare", icon: "⇄", supported: false, msg: "A-vs-B diverging view is coming to the real map." },
+        comparePage("salesGroups"),
       ],
     },
     rhsi: {
@@ -54,9 +63,7 @@
     // Urban Features — composite group of urban-context variable-layers (same model as Sales Single).
     context: {
       groupMeasures: "contextVars", baseRep: "choropleth",
-      pages: [
-        { key: "single", label: "Single", icon: "▪", supported: true, group: true, measures: "contextVars", hint: "One urban feature per layer, composited on colour / height / points." },
-      ],
+      pages: [singlePage("contextVars", "One urban feature."), comparePage("contextVars")],
     },
     // SHAP — colours by RHSI (the value it explains); its "variables" are the signed feature
     // decomposition, driven by the app's own #shap-feature-filter, so no channel-layer group.
@@ -69,35 +76,25 @@
     weather: {
       groupMeasures: "weatherVars", baseRep: "choropleth",
       temporal: true, timeRep: "heatfield",
-      pages: [
-        { key: "single", label: "Single", icon: "▪", supported: true, group: true, measures: "weatherVars", hint: "Hot / mild day counts per dong — flip Time on for the day-by-day heat field." },
-      ],
+      pages: [singlePage("weatherVars", "Hot / mild day counts — flip Time on for the day-by-day heat field."), comparePage("weatherVars")],
     },
     heatfeature: {
       groupMeasures: "weatherVars", baseRep: "choropleth",
       temporal: true, timeRep: "heatfield",
-      pages: [
-        { key: "single", label: "Single", icon: "▪", supported: true, group: true, measures: "weatherVars", hint: "Heat-exposure day counts; Time plays the daily field." },
-      ],
+      pages: [singlePage("weatherVars", "Heat-exposure day counts; Time plays the daily field."), comparePage("weatherVars")],
     },
     // ---- remaining static feature datasets ----
     salesfeature: {
       groupMeasures: "salesShareVars", baseRep: "choropleth",
-      pages: [
-        { key: "single", label: "Single", icon: "▪", supported: true, group: true, measures: "salesShareVars", hint: "Retail composition shares per dong." },
-      ],
+      pages: [singlePage("salesShareVars", "Retail composition share per dong."), comparePage("salesShareVars")],
     },
     mobility: {
       groupMeasures: "mobilityVars", baseRep: "choropleth",
-      pages: [
-        { key: "single", label: "Single", icon: "▪", supported: true, group: true, measures: "mobilityVars", hint: "Day/night population response — the strongest RHSI driver." },
-      ],
+      pages: [singlePage("mobilityVars", "Day/night population response — the strongest RHSI driver."), comparePage("mobilityVars")],
     },
     heatdays: {
       groupMeasures: "weatherVars", baseRep: "choropleth",
-      pages: [
-        { key: "single", label: "Single", icon: "▪", supported: true, group: true, measures: "weatherVars", hint: "Qualifying hot / mild day counts behind RHSI." },
-      ],
+      pages: [singlePage("weatherVars", "Qualifying hot / mild day counts behind RHSI."), comparePage("weatherVars")],
     },
     // Sector Profile reads the same six sales themes as glyphs.
     sectorprofile: {
