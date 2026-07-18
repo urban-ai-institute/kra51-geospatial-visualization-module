@@ -479,7 +479,16 @@
         `<option value="${m.key}"${m.key === cur ? " selected" : ""}>${m.label}</option>`).join("")}</select>`;
     },
     _measures(kind) {
-      if (kind === "salesGroups") { const S = (typeof SALES_GROUPS !== "undefined") ? SALES_GROUPS : {}; return Object.keys(S).map((k) => ({ key: "grp_" + k, label: S[k].title })); }
+      // Sales: the six theme groups first, then the individual industries (registered by
+      // Atlas.availableMapMetrics as kind "industry"), so Single can pick either level.
+      if (kind === "salesGroups") {
+        const S = (typeof SALES_GROUPS !== "undefined") ? SALES_GROUPS : {};
+        const groups = Object.keys(S).map((k) => ({ key: "grp_" + k, label: S[k].title + " (group)" }));
+        const inds = (typeof Atlas !== "undefined" && Atlas.availableMapMetrics)
+          ? Atlas.availableMapMetrics().filter((m) => m.kind === "industry").map((m) => ({ key: m.key, label: m.label }))
+          : [];
+        return groups.concat(inds);
+      }
       if (kind === "rhsiOnly") { return [{ key: "RHSI_retail", label: "RHSI (heat sensitivity)" }]; }
       // day counts behind RHSI — the static (non-animated) view for Weather / Heat-Day Summary
       if (kind === "weatherVars") { return [{ key: "n_hot_days", label: "Extreme-heat days" }, { key: "n_mild_days", label: "Mild days" }]; }
