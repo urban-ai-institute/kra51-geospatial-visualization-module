@@ -54,7 +54,9 @@
   const LS_DATASETS = {
     sales: {
       groupMeasures: "salesGroups", baseRep: "choropleth",
-      temporal: true, timeRep: "choropleth",   // sales choropleth plays as the daily-sales sequence
+      // What plays while animating. First entry is the default; more temporal datasets
+      // just add a channel here rather than needing new UI.
+      temporal: true, timeChannels: [{ label: "Sales", rep: "choropleth" }, { label: "Heat × Sales", rep: "compare" }],
       pages: [
         singlePage("salesGroups", "One theme's heat-sensitivity."),
         { key: "total", label: "Total", icon: "▣", supported: true, reps: DESIGN_REPS, measures: "salesTotal", hint: "All six themes summed — total card sales per dong." },
@@ -71,7 +73,11 @@
     // Urban Features — composite group of urban-context variable-layers (same model as Sales Single).
     context: {
       groupMeasures: "contextVars", baseRep: "choropleth",
-      pages: [singlePage("contextVars", "One urban feature."), comparePage("contextVars")],
+      // divided + buildingmix are declared by this dataset and their renderers exist,
+      // so they belong in the design list alongside the generic ones.
+      pages: [Object.assign(singlePage("contextVars", "One urban feature."),
+                { reps: DESIGN_REPS.concat(["divided", "buildingmix"]) }),
+              comparePage("contextVars")],
     },
     // SHAP — colours by RHSI (the value it explains); its "variables" are the signed feature
     // decomposition, driven by the app's own #shap-feature-filter, so no channel-layer group.
@@ -83,12 +89,12 @@
     // ---- temporal datasets: static day-counts + an animated time view (right-rail toggle) ----
     weather: {
       groupMeasures: "weatherVars", baseRep: "choropleth",
-      temporal: true, timeRep: "heatfield",
+      temporal: true, timeChannels: [{ label: "Heat", rep: "heatfield" }, { label: "Heat × Sales", rep: "compare" }],
       pages: [singlePage("weatherVars", "Hot / mild day counts — flip Time on for the day-by-day heat field."), comparePage("weatherVars")],
     },
     heatfeature: {
       groupMeasures: "weatherVars", baseRep: "choropleth",
-      temporal: true, timeRep: "heatfield",
+      temporal: true, timeChannels: [{ label: "Heat", rep: "heatfield" }, { label: "Heat × Sales", rep: "compare" }],
       pages: [singlePage("weatherVars", "Heat-exposure day counts; Time plays the daily field."), comparePage("weatherVars")],
     },
     // ---- remaining static feature datasets ----
@@ -102,7 +108,11 @@
     },
     heatdays: {
       groupMeasures: "weatherVars", baseRep: "choropleth",
-      pages: [singlePage("weatherVars", "Qualifying hot / mild day counts behind RHSI."), comparePage("weatherVars")],
+      // heatdays does not declare "points", so offering it would be rejected by
+      // applyRepresentation and silently fall back to choropleth.
+      pages: [Object.assign(singlePage("weatherVars", "Qualifying hot / mild day counts behind RHSI."),
+                { reps: DESIGN_REPS.filter((r) => r !== "points") }),
+              comparePage("weatherVars")],
     },
     // Sector Profile reads the same six sales themes as glyphs.
     sectorprofile: {
@@ -112,7 +122,7 @@
       ],
     },
     atlas: {
-      temporal: true, timeRep: "compare",
+      temporal: true, timeChannels: [{ label: "Heat × Sales", rep: "compare" }],
       pages: [
         { key: "single", label: "Single", icon: "▪", supported: true, reps: ["dashboard", "compare", "rings"], measures: "rhsiOnly", hint: "The combined atlas overview." },
       ],
@@ -315,18 +325,25 @@
         if (measures.length > 1) measHTML = `<div class="ls-row-l">Variable</div>${this._measureSelect(measures, (typeof map !== "undefined" && map) ? map.colorBy : null)}`;
       }
 
-      // temporal toggle — only for datasets that have a time representation
+      // temporal toggle, plus (while animating) which channel plays
       let timeHTML = "";
       if (cfg.temporal) {
         const on = this._isTime(dsId);
         timeHTML = `<div class="ls-row-l">Time</div><div class="ls-seg">
           <button class="ls-b${on ? "" : " on"}" data-ls-time="off"><i>▪</i><span>Static</span></button>
           <button class="ls-b${on ? " on" : ""}" data-ls-time="on"><i>▶</i><span>Animate</span></button></div>`;
+        const chans = this._timeChannels(dsId);
+        if (on && chans.length > 1) {
+          const cur = this._activeChannel(dsId);
+          timeHTML += `<div class="ls-row-l">Plays</div><div class="ls-seg ls-seg-wrap">${chans.map((c) =>
+            `<button class="ls-b${c.rep === cur ? " on" : ""}" data-ls-chan="${c.rep}"><i>▶</i><span>${c.label}</span></button>`).join("")}</div>`;
+        }
       }
 
       host.innerHTML = `<div class="ls-inner">${presetHTML}${measHTML}${timeHTML}</div>`;
       host.querySelectorAll("[data-ls-page]").forEach((b) => b.onclick = () => this._selectPage(dsId, b.dataset.lsPage));
       host.querySelectorAll("[data-ls-time]").forEach((b) => b.onclick = () => this._setTime(dsId, b.dataset.lsTime === "on"));
+      host.querySelectorAll("[data-ls-chan]").forEach((b) => b.onclick = () => this._setTime(dsId, true, b.dataset.lsChan));
       host.querySelectorAll("[data-ls-cvar]").forEach((s) => s.onchange = () => this._setLayerField(dsId, s.dataset.lsCvar, "measure", s.value));
       const sel = host.querySelector("[data-ls-measure]");
       if (sel) sel.onchange = () => this._applyMeasure(dsId, sel.value);
@@ -405,23 +422,44 @@
       if (typeof map !== "undefined" && map && typeof map.isTimeMode === "function") return !!map.isTimeMode();
       return !!this._time[dsId];
     },
-    _setTime(dsId, on) {
-      this._time[dsId] = on;
-      if (on) this._applyTime(dsId); else this._applyStatic(dsId);
+    // What this dataset can play while animating. First entry is the default.
+    _timeChannels(dsId) {
+      const cfg = this._cfg(dsId) || {};
+      if (cfg.timeChannels && cfg.timeChannels.length) return cfg.timeChannels;
+      return cfg.timeRep ? [{ label: "Animate", rep: cfg.timeRep }] : [];
     },
-    // ON → the dataset's time representation; applyRepresentation enters time mode itself
-    // (rt.time for heatfield/compare, or the sales daily-choropleth sequence).
-    _applyTime(dsId) {
+    // Which channel is playing — read back from the engine, falling back to the default.
+    _activeChannel(dsId) {
+      const chans = this._timeChannels(dsId);
+      const rep = (typeof Panels !== "undefined") ? Panels.selectedRep : null;
+      const hit = chans.find((c) => c.rep === rep);
+      return hit ? hit.rep : (chans[0] && chans[0].rep) || null;
+    },
+    _setTime(dsId, on, chanRep) {
+      this._time[dsId] = on;
+      if (on) this._applyTime(dsId, chanRep); else this._applyStatic(dsId);
+    },
+    // ON → play a time channel. applyRepresentation enters time mode itself and sets
+    // timeVar/timeCompare (rt.time for heatfield/compare, or the sales daily sequence),
+    // which is what makes the timeline draw one series or both.
+    _applyTime(dsId, chanRep) {
       if (typeof Panels === "undefined" || typeof map === "undefined" || !map) { this.sync(); return; }
-      Panels.applyRepresentation(dsId, (this._cfg(dsId) || {}).timeRep || "heatfield");
+      const chans = this._timeChannels(dsId);
+      const rep = (chans.find((c) => c.rep === chanRep) || chans[0] || {}).rep || "heatfield";
+      Panels.applyRepresentation(dsId, rep);
       this._applyAppearance(dsId);
       map.render(); this._afterApply();
     },
-    // OFF → re-apply whatever preset page is active (those paths call exitTimeMode)
+    // OFF → re-apply whatever preset page is active, then make sure we really are static.
     _applyStatic(dsId) {
       const page = this._pageByKey(dsId, this._page[dsId]);
       if (page && page.group) this._applyActive(dsId);
       else this._applyPage(dsId, (page && page.reps && page.reps[0]) || null);
+      // Some pages' default rep is itself temporal — Sales' choropleth plays the daily
+      // sales sequence — so pressing Static has to leave time mode explicitly.
+      if (typeof exitTimeMode === "function") exitTimeMode();
+      if (typeof map !== "undefined" && map && map.render) map.render();
+      this.sync();
     },
     // Single = variable-layers composited on data channels (no sector glyph).
     _applySingle(dsId) {
