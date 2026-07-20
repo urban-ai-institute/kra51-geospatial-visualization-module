@@ -1338,3 +1338,30 @@ html, body {
   background: rgba(125,167,255,0.16); border: 1px solid rgba(125,167,255,0.5); color: #eaf0ff;
   font-size: 12px; padding: 9px 16px; border-radius: 9px; opacity: 0; transition: opacity .25s ease, transform .25s ease; pointer-events: none; }
 .ls-toast.show { opacity: 1; transform: translate(-50%, 0); }
+
+/* ── download notice: large lazy layers (3D buildings) ─────────────────────── */
+.download-notice {
+  position: absolute; left: 50%; bottom: 26px; transform: translate(-50%, 10px); z-index: 30;
+  min-width: 250px; padding: 11px 14px; border-radius: 11px; opacity: 0; pointer-events: none;
+  background: linear-gradient(180deg, rgba(16,21,32,0.96), rgba(10,14,22,0.97));
+  border: 1px solid rgba(125,167,255,0.35); box-shadow: 0 14px 40px rgba(0,0,0,0.45);
+  transition: opacity .2s ease, transform .2s ease;
+}
+.download-notice.show { opacity: 1; transform: translate(-50%, 0); }
+.download-notice.dn-error { border-color: rgba(255,184,107,0.45); }
+.dn-row { display: flex; align-items: center; gap: 10px; }
+.dn-text { display: flex; flex-direction: column; gap: 2px; }
+.dn-title { font-size: 12px; font-weight: 600; color: var(--text); }
+.dn-sub { font-size: 10.5px; color: var(--muted); font-family: var(--font-mono); }
+.dn-spin { width: 14px; height: 14px; flex: none; border-radius: 50%;
+  border: 2px solid rgba(125,167,255,0.25); border-top-color: var(--cold-blue);
+  animation: dn-rot .8s linear infinite; }
+.dn-error .dn-spin { animation: none; border-color: rgba(255,184,107,0.5); border-top-color: var(--amber); }
+@keyframes dn-rot { to { transform: rotate(360deg); } }
+.dn-bar { margin-top: 9px; height: 3px; border-radius: 2px; background: rgba(255,255,255,0.08); overflow: hidden; }
+.dn-bar i { display: block; height: 100%; width: 0; border-radius: 2px; background: var(--cold-blue); transition: width .2s ease; }
+/* unknown total (gzipped stream) → sweep instead of a real percentage */
+.dn-bar.dn-indet i { width: 40% !important; animation: dn-sweep 1.1s ease-in-out infinite; }
+@keyframes dn-sweep { 0% { margin-left: -40%; } 100% { margin-left: 100%; } }
+/* toolbar button while its layer is downloading */
+.map-toolbar button.tb-loading { color: var(--cold-blue); border-color: rgba(125,167,255,0.45); opacity: 0.75; }

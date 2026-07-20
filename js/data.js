@@ -173,11 +173,33 @@ const Atlas = {
   buildingsURL() {
     return (typeof window !== "undefined" && window.ATLAS_BUILDINGS_URL) || "data/buildings.json";
   },
-  ensureBuildings() {
+  // onProgress(loadedBytes, totalBytes) is called while streaming so the UI can show
+  // real progress on this large download. NOTE: when the server gzips, content-length
+  // is the COMPRESSED size while the reader yields decompressed bytes, so the caller
+  // must treat total as approximate (or absent) rather than assume loaded <= total.
+  ensureBuildings(onProgress) {
     if (this.buildings) return Promise.resolve(this.buildings);
     if (this._buildingsPromise) return this._buildingsPromise;
     return (this._buildingsPromise = fetch(this.buildingsURL())
-      .then((r) => (r.ok ? r.json() : null))
+      .then((r) => {
+        if (!r.ok) return null;
+        if (!onProgress || !r.body || !r.body.getReader) return r.json();
+        const reader = r.body.getReader();
+        const total = +(r.headers.get("content-length") || 0);
+        const chunks = []; let loaded = 0;
+        const pump = () => reader.read().then(({ done, value }) => {
+          if (done) return;
+          chunks.push(value); loaded += value.length;
+          try { onProgress(loaded, total); } catch (e) {}
+          return pump();
+        });
+        return pump().then(() => {
+          let n = 0; chunks.forEach((c) => (n += c.length));
+          const buf = new Uint8Array(n); let o = 0;
+          chunks.forEach((c) => { buf.set(c, o); o += c.length; });
+          return JSON.parse(new TextDecoder().decode(buf));
+        });
+      })
       .then((d) => { this.buildings = d || null; return this.buildings; })
       .catch(() => { this.buildings = null; return null; }));
   },

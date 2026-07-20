@@ -567,9 +567,23 @@ function initControlPanel() {
       if (on && OSM_LAYERS.has(layer)) {
         Atlas.ensureOSM(layer).then(() => { map._staticCache = null; map.render(); updateLegend(); });
       }
-      // buildings.json is large and lazy — fetch it the first time the layer is switched on
-      if (on && layer === "buildings" && typeof Atlas.ensureBuildings === "function") {
-        Atlas.ensureBuildings().then(() => { map._bldgCache = null; map._staticCache = null; map.render(); updateLegend(); });
+      // buildings.json is large (~7MB gzipped) and lazy — tell the user it's downloading
+      // rather than leaving the toggle looking broken while it streams in.
+      if (on && layer === "buildings" && typeof Atlas.ensureBuildings === "function" && !Atlas.buildings) {
+        btn.classList.add("tb-loading");
+        showDownloadNotice("Downloading 3D buildings", "about 7 MB, one time");
+        Atlas.ensureBuildings((loaded, total) => updateDownloadNotice(loaded, total))
+          .then((b) => {
+            btn.classList.remove("tb-loading");
+            if (!b) {                       // failed / unavailable → don't leave a dead toggle on
+              map.setLayer("buildings", false);
+              btn.classList.toggle("on", false);
+              showDownloadNotice("3D buildings unavailable", "could not load the data", true);
+            } else {
+              hideDownloadNotice();
+            }
+            map._bldgCache = null; map._staticCache = null; map.render(); updateLegend();
+          });
       }
       updateLegend();
     });
@@ -606,6 +620,51 @@ function initControlPanel() {
 // The layer checkboxes are gone (the Layer-Set editor owns composition), but callers
 // still invoke this behind a typeof guard, so keep it as a harmless no-op.
 function syncLayerChecks() {}
+// ---------- download notice (large lazy layers) ----------
+// A small card near the map that says a big optional layer is being fetched, with real
+// progress. Without it a click on Buildings looks like nothing happened for several
+// seconds on a slow connection.
+function downloadNoticeEl() {
+  let el = document.getElementById("download-notice");
+  if (!el) {
+    el = document.createElement("div");
+    el.id = "download-notice";
+    el.className = "download-notice";
+    el.innerHTML = `<div class="dn-row"><span class="dn-spin"></span><div class="dn-text">
+        <b class="dn-title"></b><span class="dn-sub"></span></div></div>
+      <div class="dn-bar"><i></i></div>`;
+    (document.getElementById("map-stage") || document.body).appendChild(el);
+  }
+  return el;
+}
+function showDownloadNotice(title, sub, isError) {
+  const el = downloadNoticeEl();
+  el.querySelector(".dn-title").textContent = title;
+  el.querySelector(".dn-sub").textContent = sub || "";
+  el.classList.toggle("dn-error", !!isError);
+  el.querySelector(".dn-bar").style.display = isError ? "none" : "";
+  el.querySelector(".dn-bar i").style.width = "0%";
+  el.classList.add("show");
+  if (isError) setTimeout(hideDownloadNotice, 4000);
+}
+function updateDownloadNotice(loaded, total) {
+  const el = document.getElementById("download-notice");
+  if (!el) return;
+  const mb = (n) => (n / 1048576).toFixed(1);
+  // total is the COMPRESSED length when the server gzips, so it can be smaller than
+  // the decompressed bytes we've read — only show a % while it still makes sense.
+  const usable = total > 0 && loaded <= total;
+  el.querySelector(".dn-sub").textContent = usable
+    ? `${mb(loaded)} / ${mb(total)} MB`
+    : `${mb(loaded)} MB downloaded`;
+  el.querySelector(".dn-bar i").style.width = usable ? Math.round((loaded / total) * 100) + "%" : "100%";
+  el.querySelector(".dn-bar").classList.toggle("dn-indet", !usable);
+}
+function hideDownloadNotice() {
+  const el = document.getElementById("download-notice");
+  if (el) el.classList.remove("show");
+}
+
 // Reflect map layer state onto the top toolbar pills.
 function syncToolbar() {
   document.querySelectorAll("#map-toolbar button[data-toolbar-layer]").forEach((btn) => {
