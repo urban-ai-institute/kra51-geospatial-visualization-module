@@ -4,12 +4,10 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Seoul Data Atlas</title>
-<!-- Assets are versioned by the ?v= query below, so they can be cached normally.
-     Cache headers for a deploy live in _headers (Cloudflare Pages / Netlify). -->
+<!-- No manual asset version: _headers sets Cache-Control: no-cache on js/css/data,
+     so the browser caches them but revalidates via ETag. The host fingerprints each
+     file's contents, so a deploy invalidates automatically — nothing to bump. -->
 <script>
-  // Asset version. Bump on deploy so browsers pick up new JS/CSS; keeping it fixed
-  // (rather than Date.now()) lets them cache between visits. Set ?dev=1 to bust locally.
-  window.__cb = /[?&]dev=1\b/.test(location.search) ? Date.now() : "2026-07-19";
   // Optional: host the ~61MB buildings.json off-repo (e.g. Cloudflare R2) to avoid a
   // per-file size cap and git bloat. Leave unset to serve it from data/.
   // window.ATLAS_BUILDINGS_URL = "https://<your-r2-public-domain>/buildings.json";
@@ -17,7 +15,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,500;1,400&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
 <link href="https://unpkg.com/maplibre-gl@4/dist/maplibre-gl.css" rel="stylesheet" />
-<script>document.write('<link rel="stylesheet" href="css/styles.css?v=' + window.__cb + '">');</script>
+<link rel="stylesheet" href="css/styles.css" />
 </head>
 <body>
 
@@ -273,11 +271,14 @@
 <script src="https://unpkg.com/echarts-gl@2/dist/echarts-gl.min.js"></script>
 <script src="https://unpkg.com/maplibre-gl@4/dist/maplibre-gl.js"></script>
 <script src="https://unpkg.com/deck.gl@9/dist.min.js"></script>
-<script>
-  // Load local scripts with a cache-buster so edits always show on reload. document.write
-  // keeps them in order and runs them after the CDN libraries above (classic scripts).
-  ['js/data.js', 'js/map.js', 'js/charts.js', 'js/timeline.js', 'js/panels.js', 'js/layerset/panel.js', 'js/app.js']
-    .forEach(function (s) { document.write('<script src="' + s + '?v=' + window.__cb + '"><\/script>'); });
-</script>
+<!-- Classic scripts: they run in document order, after the CDN libraries above.
+     Freshness is handled by ETag revalidation (see _headers), not a query string. -->
+<script src="js/data.js"></script>
+<script src="js/map.js"></script>
+<script src="js/charts.js"></script>
+<script src="js/timeline.js"></script>
+<script src="js/panels.js"></script>
+<script src="js/layerset/panel.js"></script>
+<script src="js/app.js"></script>
 </body>
 </html>

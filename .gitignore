@@ -1,8 +1,6 @@
-# Large / regenerable OSM data — rebuild with scripts/fetch_osm_*.py (needs network)
+# Only buildings.json is too large to commit (61MB); it is served from object
+# storage via window.ATLAS_BUILDINGS_URL. The OSM context layers are small and tracked.
 data/buildings.json
-data/nature.json
-data/transit.json
-data/amenity.json
 data/*_fetch_progress.json
 
 # Python / env

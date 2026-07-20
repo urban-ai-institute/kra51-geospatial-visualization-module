@@ -1,20 +1,20 @@
 # Cache headers for Cloudflare Pages / Netlify.
-# index.html must revalidate so a new deploy is picked up immediately; everything
-# else is either versioned (?v= on js/css) or immutable data, so it caches hard.
+#
+# "no-cache" does NOT mean "don't cache" — it means "cache it, but revalidate with
+# me before reusing it". The host fingerprints each file (ETag); the browser asks
+# "still current?" and normally gets a ~200-byte 304 Not Modified and reuses its
+# copy. When a deploy changes a file its ETag changes, so the browser is handed the
+# new version automatically. That's why there is no manual asset version to bump.
+#
+# ("no-store" is the one that disables caching entirely — not used here.)
 
-/
-  Cache-Control: public, max-age=0, must-revalidate
+/*
+  Cache-Control: no-cache
 
-/index.html
-  Cache-Control: public, max-age=0, must-revalidate
-
-# Versioned by ?v= in index.html — safe to cache for a year.
-/js/*
-  Cache-Control: public, max-age=31536000
-
-/css/*
-  Cache-Control: public, max-age=31536000
-
-# Data snapshots change only on a re-run of the prep scripts.
+# Data snapshots change only when the prep scripts are re-run, but revalidation is
+# cheap (a 304) and guarantees a regenerated dataset is picked up, so same rule.
 /data/*
-  Cache-Control: public, max-age=86400
+  Cache-Control: no-cache
+
+# Long-lived immutable assets could go here with max-age=31536000 if any are ever
+# content-hashed in the filename (e.g. app.a1b2c3.js). None are today.
