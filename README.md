@@ -6,6 +6,8 @@ Seoul Data Atlas combines the **Urban Heat / Urban Sales (UHUS)** datasets into 
 
 > Status: research prototype. The current release contains one active dataset, **Retail Heat Sensitivity**, covering all 25 Seoul districts and 422 administrative dongs.
 
+**Live site:** https://seoul-data-atlas.pages.dev/ — hosted on Cloudflare Pages, with the large building layer served from Cloudflare R2. See [Deployment](#deployment).
+
 ## Contents
 
 - [What the dashboard answers](#what-the-dashboard-answers)
@@ -784,6 +786,61 @@ seoul-data-atlas/
 ## Deployment
 
 The application can be hosted on any static web server that preserves the repository's relative paths, including GitHub Pages, Netlify, Cloudflare Pages, S3-compatible object storage, or a conventional web server.
+
+### This deployment — Cloudflare Pages + R2
+
+The live site (https://seoul-data-atlas.pages.dev/) is deployed as follows. The static
+app ships from the Git repo via Cloudflare Pages; the ~61 MB `buildings.json` — which
+exceeds Pages' 25 MiB per-file limit and is `.gitignore`d — is served separately from a
+Cloudflare R2 bucket.
+
+**1. Cloudflare Pages (the app)**
+
+- Cloudflare dashboard → Workers & Pages → **Pages → Connect to Git** → select this repo.
+  (If the dashboard hides the Pages tab, create it from the CLI: `npx wrangler pages deploy . --project-name=seoul-data-atlas`.)
+- Build settings for this no-build static site:
+  - Framework preset: **None**
+  - Build command: *(empty, or `exit 0`)*
+  - Build output directory: **`/`** (repo root — `index.html` lives here)
+- Every push to `main` redeploys automatically. Use **only one** Git-connected
+  project (Pages) to avoid double deploys; don't also connect a Worker.
+
+**2. Cloudflare R2 (`buildings.json`)**
+
+- Create a bucket and upload `data/buildings.json` to it (this repo uses the key
+  `osm/buildings.json`).
+- Bucket → Settings → enable the **Public Development URL** (or attach a custom domain).
+- Point the app at it in [`index.html`](index.html) — already set here:
+  ```html
+  <script>
+    window.ATLAS_BUILDINGS_URL = "https://pub-<hash>.r2.dev/osm/buildings.json";
+  </script>
+  ```
+  `Atlas.ensureBuildings()` reads `window.ATLAS_BUILDINGS_URL` and falls back to
+  `data/buildings.json` when it is unset.
+- The app fetches R2 cross-origin, so set a **CORS policy** on the bucket
+  (Settings → CORS Policy). Origins must match the browser `Origin` header exactly —
+  **no trailing slash, no path**:
+  ```json
+  [
+    {
+      "AllowedOrigins": [
+        "https://seoul-data-atlas.pages.dev",
+        "http://localhost:5173"
+      ],
+      "AllowedMethods": ["GET", "HEAD"],
+      "AllowedHeaders": ["*"],
+      "ExposeHeaders": ["Content-Length"],
+      "MaxAgeSeconds": 3600
+    }
+  ]
+  ```
+  `ExposeHeaders: Content-Length` lets the download-progress readout show the total size.
+
+**Verify:** open the site, drill into a gu/dong, and enable the **Buildings** layer.
+3D extrusions appearing = R2 + CORS are wired correctly. If they don't, check the browser
+console: a CORS error means the origin string doesn't match (trailing slash / wrong port);
+a 404 means the `ATLAS_BUILDINGS_URL` path is wrong.
 
 ### Static-host requirements
 
