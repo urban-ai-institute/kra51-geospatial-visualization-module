@@ -640,6 +640,8 @@ html, body {
 .spatial-box .sb-group, .dropdown-box .sb-group { margin-bottom: 11px; }
 .spatial-box .sb-group:last-child, .dropdown-box .sb-group:last-child { margin-bottom: 0; }
 .spatial-box .sb-group > label, .dropdown-box .sb-group > label { display: block; font-size: 9px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); margin-bottom: 5px; }
+/* secondary hint clarifying each spatial control's job (camera vs draw unit) */
+.sb-hint { text-transform: none; letter-spacing: 0; color: rgba(255,255,255,0.28); font-weight: 400; }
 .spatial-box .seg { margin-bottom: 0; }
 /* .spatial-box .sb-group > label {color: var(--toned); } */
 /* dropdown selects match the mc-field select styling */

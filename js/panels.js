@@ -497,8 +497,10 @@ const Panels = {
       m.unifyLayerHeights(color);
     }
 
-    // grain + sector encoding
-    this._setGrainUI("dong");
+    // Grain is owned by the Granularity control, not the representation. Sector glyphs
+    // (rings/columns/dominant/…) render at gu AND dong via _sectorRegions, so we must NOT
+    // force dong here — doing so made a manual Gu/Dong choice revert on every apply.
+    // Reps that lean on dong data (e.g. hexbin) degrade gracefully rather than break.
     m.setSectorView(sector);
 
     // slider tuning (syncs the slider inputs + read-outs)

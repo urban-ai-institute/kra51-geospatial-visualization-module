@@ -893,11 +893,11 @@ function syncTargetSeg() {
 // Granularity can't be coarser than the target area — aggregating a single Gu at
 // "Seoul" grain is meaningless. Only the target level and finer grains are SHOWN
 // (Seoul target → Seoul/Gu/Dong; Gu → Gu/Dong; Dong → Dong). Whenever the target
-// LEVEL changes, auto-select the grain one step finer than the target.
-let _lastTargetLevel = null;
+// hidden below the target level. The Granularity control is the single source of truth
+// for grain, so this only *gates availability* — it never overrides a still-valid choice.
 function syncGrainAvailability() {
   const order = { seoul: 0, gu: 1, dong: 2 };
-  const finer = { seoul: "gu", gu: "dong", dong: "dong" }; // one step lower than the target
+  const finer = { seoul: "gu", gu: "dong", dong: "dong" }; // fallback when the current grain is invalid
   const targetLvl = state.scope.level === "city" ? "seoul" : state.scope.level;
   const min = order[targetLvl];
   const grains = activeSupports().grains; // capability-gated grains for the active dataset
@@ -907,11 +907,10 @@ function syncGrainAvailability() {
     b.hidden = order[b.dataset.grain] < min || !grains.includes(b.dataset.grain);
   });
   const isVisible = (g) => btns.some((b) => b.dataset.grain === g && !b.hidden);
-  const levelChanged = targetLvl !== _lastTargetLevel;
-  _lastTargetLevel = targetLvl;
-  const cur = document.querySelector("#grain-seg button.active")?.dataset.grain;
-  // level change → auto one-step-finer; otherwise keep the current grain if still valid
-  let want = levelChanged ? finer[targetLvl] : (cur && isVisible(cur) ? cur : finer[targetLvl]);
+  const cur = map && map.grain ? map.grain : document.querySelector("#grain-seg button.active")?.dataset.grain;
+  // Keep the user's grain if it's still valid; only fall back when it's become invalid
+  // (e.g. Dong target hides Seoul/Gu). Do NOT auto-jump on every scope change.
+  let want = (cur && isVisible(cur)) ? cur : finer[targetLvl];
   if (!isVisible(want)) want = targetLvl; // e.g. Dong target → only Dong is valid
   btns.forEach((b) => b.classList.toggle("active", b.dataset.grain === want));
   if (map && map.grain !== want) map.setGrain(want);
