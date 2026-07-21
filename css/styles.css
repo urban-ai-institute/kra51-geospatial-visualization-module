@@ -1398,3 +1398,80 @@ html, body {
 /* numeric read-out beside each Appearance slider (curved sliders need a visible value) */
 .ls-aval { flex: none; min-width: 30px; text-align: right; font-family: var(--font-mono);
   font-size: 9.5px; color: var(--muted); }
+
+/* ============ CREDITS OVERLAY ============ */
+/* Full-screen about/credits page opened from the side-nav (senseable.mit.edu style). */
+.credits-overlay {
+  position: fixed; inset: 0; z-index: 100002;
+  display: flex; align-items: stretch; justify-content: center;
+  animation: creditsFade .3s ease-out;
+}
+.credits-overlay.hidden { display: none !important; }
+@keyframes creditsFade { from { opacity: 0; } to { opacity: 1; } }
+
+.credits-scrim {
+  position: absolute; inset: 0;
+  background: radial-gradient(ellipse at 50% 0%, rgba(11,18,32,0.6), rgba(3,5,10,0.86) 70%), rgba(3,5,10,0.9);
+  backdrop-filter: blur(14px);
+}
+.credits-close {
+  position: fixed; top: 22px; right: 26px; z-index: 2;
+  width: 40px; height: 40px; border-radius: 50%; cursor: pointer;
+  background: rgba(255,255,255,0.05); border: 1px solid var(--panel-border);
+  color: var(--muted); font-size: 15px; line-height: 1;
+  display: flex; align-items: center; justify-content: center;
+  backdrop-filter: blur(20px); transition: all .18s ease;
+}
+.credits-close:hover { color: #fff; border-color: rgba(255,255,255,0.28); background: rgba(255,255,255,0.1); transform: rotate(90deg); }
+
+.credits-scroll { position: relative; z-index: 1; width: 100%; overflow-y: auto; }
+.credits-inner {
+  max-width: 940px; margin: 0 auto;
+  padding: clamp(64px, 12vh, 140px) 32px 80px;
+  opacity: 0; transform: translateY(14px);
+  animation: creditsRise .7s cubic-bezier(.2,.7,.2,1) .08s forwards;
+}
+@keyframes creditsRise { to { opacity: 1; transform: translateY(0); } }
+
+.credits-eyebrow {
+  font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.22em;
+  text-transform: uppercase; color: var(--cold-blue); margin-bottom: 18px;
+}
+.credits-title {
+  font-family: var(--font-display); font-weight: 300;
+  font-size: clamp(46px, 7vw, 86px); letter-spacing: 0.02em;
+  color: #F4F1EA; margin: 0 0 22px; line-height: 1.02;
+}
+.credits-lede {
+  font-family: var(--font-display); font-weight: 300;
+  font-size: clamp(19px, 2.3vw, 26px); line-height: 1.55;
+  color: var(--toned); max-width: 720px; margin: 0 0 clamp(46px, 7vh, 76px);
+}
+
+.credits-cols {
+  display: grid; grid-template-columns: repeat(3, 1fr); gap: 36px 40px;
+  padding-top: 40px; border-top: 1px solid var(--panel-border);
+}
+.credits-block h2 {
+  font-family: var(--font-ui); font-weight: 600; font-size: 12px;
+  letter-spacing: 0.14em; text-transform: uppercase; color: var(--muted);
+  margin: 0 0 16px;
+}
+.credits-block ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 12px; }
+.credits-block li { display: flex; flex-direction: column; gap: 2px; }
+.cr-role {
+  font-family: var(--font-mono); font-size: 9.5px; letter-spacing: 0.08em;
+  text-transform: uppercase; color: rgba(255,255,255,0.34);
+}
+.cr-name { font-size: 14.5px; line-height: 1.45; color: var(--text); }
+
+.credits-foot {
+  margin-top: clamp(48px, 8vh, 80px); padding-top: 28px;
+  border-top: 1px solid var(--panel-border);
+}
+.credits-foot p { font-size: 13px; line-height: 1.7; color: var(--muted); max-width: 720px; margin: 0 0 14px; }
+.credits-copy { font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.06em; color: rgba(255,255,255,0.3); }
+
+@media (max-width: 720px) {
+  .credits-cols { grid-template-columns: 1fr; gap: 30px; }
+}

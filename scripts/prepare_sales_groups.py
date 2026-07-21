@@ -70,57 +70,62 @@ MAP = {
     "used_goods_store": "housing",
 }
 
-print("Reading sales.csv...")
-head = pd.read_csv(os.path.join(UHUS, "sales.csv"), nrows=0).columns.tolist()
-industry_cols = [c for c in head if c.endswith("_amount") and c != "retail_total_amount"]
+def main():
+    print("Reading sales.csv...")
+    head = pd.read_csv(os.path.join(UHUS, "sales.csv"), nrows=0).columns.tolist()
+    industry_cols = [c for c in head if c.endswith("_amount") and c != "retail_total_amount"]
 
-usecols = ["date", "gu_code", "dong_code"] + industry_cols
-sales = pd.read_csv(os.path.join(UHUS, "sales.csv"), usecols=usecols,
-                    dtype={"gu_code": str, "dong_code": str}, parse_dates=["date"])
+    usecols = ["date", "gu_code", "dong_code"] + industry_cols
+    sales = pd.read_csv(os.path.join(UHUS, "sales.csv"), usecols=usecols,
+                        dtype={"gu_code": str, "dong_code": str}, parse_dates=["date"])
 
-# build 6 group-sum columns
-for gid, _ in GROUPS:
-    members = [c for c in industry_cols if MAP.get(c[:-len("_amount")]) == gid]
-    sales["grp_" + gid] = sales[members].sum(axis=1)
+    # build 6 group-sum columns
+    for gid, _ in GROUPS:
+        members = [c for c in industry_cols if MAP.get(c[:-len("_amount")]) == gid]
+        sales["grp_" + gid] = sales[members].sum(axis=1)
 
-unmapped = [c[:-len("_amount")] for c in industry_cols
-            if c[:-len("_amount")] not in MAP]
-if unmapped:
-    print("  NOTE unmapped industries (ignored):", unmapped)
+    unmapped = [c[:-len("_amount")] for c in industry_cols
+                if c[:-len("_amount")] not in MAP]
+    if unmapped:
+        print("  NOTE unmapped industries (ignored):", unmapped)
 
-grp_cols = ["grp_" + gid for gid, _ in GROUPS]
+    grp_cols = ["grp_" + gid for gid, _ in GROUPS]
 
-# ---- gu-level (whole-Seoul rings) : {date,g} rows keyed by gu_code ----
-agg = sales.groupby(["gu_code", "date"], as_index=False)[grp_cols].sum().sort_values(["gu_code", "date"])
-out = {"groups": [{"id": gid, "label": lbl} for gid, lbl in GROUPS], "gu": {}}
-year_max = [0.0] * len(GROUPS)
-for gu_code, g in agg.groupby("gu_code"):
-    rows = []
-    for _, r in g.iterrows():
-        vals = [round(float(r[c]), 0) for c in grp_cols]
-        for i, v in enumerate(vals):
-            year_max[i] = max(year_max[i], v)
-        rows.append({"date": r["date"].strftime("%Y-%m-%d"), "g": vals})
-    out["gu"][gu_code] = rows
-out["year_max"] = year_max
-p1 = os.path.join(OUT, "gu_group_daily.json")
-with open(p1, "w", encoding="utf-8") as f:
-    json.dump(out, f, separators=(",", ":"))
-print(f"wrote gu_group_daily.json ({os.path.getsize(p1)/1024:,.0f} KB) · gu={len(out['gu'])}")
+    # ---- gu-level (whole-Seoul rings) : {date,g} rows keyed by gu_code ----
+    agg = sales.groupby(["gu_code", "date"], as_index=False)[grp_cols].sum().sort_values(["gu_code", "date"])
+    out = {"groups": [{"id": gid, "label": lbl} for gid, lbl in GROUPS], "gu": {}}
+    year_max = [0.0] * len(GROUPS)
+    for gu_code, g in agg.groupby("gu_code"):
+        rows = []
+        for _, r in g.iterrows():
+            vals = [round(float(r[c]), 0) for c in grp_cols]
+            for i, v in enumerate(vals):
+                year_max[i] = max(year_max[i], v)
+            rows.append({"date": r["date"].strftime("%Y-%m-%d"), "g": vals})
+        out["gu"][gu_code] = rows
+    out["year_max"] = year_max
+    p1 = os.path.join(OUT, "gu_group_daily.json")
+    with open(p1, "w", encoding="utf-8") as f:
+        json.dump(out, f, separators=(",", ":"))
+    print(f"wrote gu_group_daily.json ({os.path.getsize(p1)/1024:,.0f} KB) · gu={len(out['gu'])}")
 
-# ---- dong-level (rings when drilled into a gu) : compact [[6]/day] per dong ----
-# Drop dates (shared 366-day axis via Atlas.timeDates); store value arrays only.
-aggd = sales.groupby(["dong_code", "date"], as_index=False)[grp_cols].sum().sort_values(["dong_code", "date"])
-dout = {"year_max": [0.0] * len(GROUPS), "dong": {}}
-for dong_code, g in aggd.groupby("dong_code"):
-    series = []
-    for _, r in g.iterrows():
-        vals = [round(float(r[c]), 0) for c in grp_cols]
-        for i, v in enumerate(vals):
-            dout["year_max"][i] = max(dout["year_max"][i], v)
-        series.append(vals)
-    dout["dong"][dong_code] = series
-p2 = os.path.join(OUT, "dong_group_daily.json")
-with open(p2, "w", encoding="utf-8") as f:
-    json.dump(dout, f, separators=(",", ":"))
-print(f"wrote dong_group_daily.json ({os.path.getsize(p2)/1024:,.0f} KB) · dong={len(dout['dong'])} · gu_year_max={[round(v/1e8,1) for v in year_max]}억")
+    # ---- dong-level (rings when drilled into a gu) : compact [[6]/day] per dong ----
+    # Drop dates (shared 366-day axis via Atlas.timeDates); store value arrays only.
+    aggd = sales.groupby(["dong_code", "date"], as_index=False)[grp_cols].sum().sort_values(["dong_code", "date"])
+    dout = {"year_max": [0.0] * len(GROUPS), "dong": {}}
+    for dong_code, g in aggd.groupby("dong_code"):
+        series = []
+        for _, r in g.iterrows():
+            vals = [round(float(r[c]), 0) for c in grp_cols]
+            for i, v in enumerate(vals):
+                dout["year_max"][i] = max(dout["year_max"][i], v)
+            series.append(vals)
+        dout["dong"][dong_code] = series
+    p2 = os.path.join(OUT, "dong_group_daily.json")
+    with open(p2, "w", encoding="utf-8") as f:
+        json.dump(dout, f, separators=(",", ":"))
+    print(f"wrote dong_group_daily.json ({os.path.getsize(p2)/1024:,.0f} KB) · dong={len(dout['dong'])} · gu_year_max={[round(v/1e8,1) for v in year_max]}억")
+
+
+if __name__ == "__main__":
+    main()

@@ -38,6 +38,7 @@ async function initDashboard() {
   updateLegend();
   initSectorView();
   initNavOverlay();
+  initCredits();
   initTour();
   initFooter();
   refreshVariableDropdowns(); // scope the variable dropdowns to the current dataset
@@ -137,6 +138,9 @@ function initNavOverlay() {
 
   navItems.forEach((btn) => {
     const key = btn.dataset.nav;
+    // Credits is a full-screen overlay, not the floating flyout — skip the hover/pin
+    // wiring below and just open the overlay on click.
+    if (key === "credits") { btn.addEventListener("click", openCredits); return; }
     btn.addEventListener("mouseenter", () => { if (key === "overview") return; hoveringNav = true; showPanel(key, pinned === key ? "pinned" : "hover"); });
     btn.addEventListener("mouseleave", () => { hoveringNav = false; setTimeout(restore, 110); });
     btn.addEventListener("click", () => {
@@ -164,6 +168,27 @@ function initNavOverlay() {
   panel.addEventListener("mouseleave", () => { hoveringPanel = false; setTimeout(restore, 110); });
 
   hidePanel(); // initial state: no floating panel visible (per spec)
+}
+
+// ---------- Credits overlay (full-screen about page) ----------
+function openCredits() {
+  const el = document.getElementById("credits-overlay");
+  if (!el) return;
+  if (typeof Tour !== "undefined" && Tour.playing) Tour.stop();
+  el.classList.remove("hidden");
+  document.querySelectorAll(".side-nav .nav-item").forEach((b) => b.classList.remove("active"));
+}
+function closeCredits() {
+  document.getElementById("credits-overlay")?.classList.add("hidden");
+}
+function initCredits() {
+  const el = document.getElementById("credits-overlay");
+  if (!el) return;
+  document.getElementById("credits-close")?.addEventListener("click", closeCredits);
+  el.querySelectorAll("[data-credits-close]").forEach((n) => n.addEventListener("click", closeCredits));
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && !el.classList.contains("hidden")) closeCredits();
+  });
 }
 
 // ---------- Overview: functional auto-demo (no narration) ----------

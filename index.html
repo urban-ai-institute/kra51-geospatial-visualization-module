@@ -55,6 +55,7 @@
       <button class="nav-item" data-nav="saved"><span class="nav-icon">◈</span><span class="nav-label"><b>Saved</b></span></button>
       <div class="nav-spacer"></div>
       <button class="nav-item" data-nav="settings"><span class="nav-icon">⚙</span><span class="nav-label"><b>Settings</b></span></button>
+      <button class="nav-item" data-nav="credits"><span class="nav-icon">ⓘ</span><span class="nav-label"><b>Credits</b></span></button>
     </nav>
 
     <!-- Main grid: 3D map hero (left) + reserved card column (far right) -->
@@ -265,6 +266,68 @@
 
 
 </section>
+
+<!-- ============ CREDITS OVERLAY ============ -->
+<!-- Full-screen "about / credits" page (senseable.mit.edu style). Opened by the
+     side-nav Credits button; closed by the ✕, the backdrop, or Escape. -->
+<div class="credits-overlay hidden" id="credits-overlay" role="dialog" aria-modal="true" aria-label="Credits">
+  <div class="credits-scrim" data-credits-close></div>
+  <button class="credits-close" id="credits-close" aria-label="Close credits">✕</button>
+  <div class="credits-scroll">
+    <div class="credits-inner">
+      <div class="credits-eyebrow">Research Prototype</div>
+      <h1 class="credits-title">Seoul Data Atlas</h1>
+      <p class="credits-lede">
+        An interactive, map-first atlas exploring how extreme heat reshapes retail
+        activity across Seoul — combining the Urban Heat / Urban Sales (UHUS) datasets
+        into a three-dimensional geospatial dashboard of all 25 districts and 422
+        administrative dongs.
+      </p>
+
+      <div class="credits-cols">
+        <section class="credits-block">
+          <h2>Research &amp; Development</h2>
+          <ul>
+            <li><span class="cr-role">Institution</span><span class="cr-name">Urban AI Institute</span></li>
+            <li><span class="cr-role">Programme</span><span class="cr-name">KRA5.1 · Geospatial Visualization Module</span></li>
+            <li><span class="cr-role">Lead</span><span class="cr-name">— your name —</span></li>
+            <li><span class="cr-role">Contributors</span><span class="cr-name">— team members —</span></li>
+          </ul>
+        </section>
+
+        <section class="credits-block">
+          <h2>Data Sources</h2>
+          <ul>
+            <li><span class="cr-name">Seoul AI Foundation</span></li>
+            <li><span class="cr-name">Korea Meteorological Administration (KMA)</span></li>
+            <li><span class="cr-name">Seoul Open Data Plaza</span></li>
+            <li><span class="cr-name">Seoul Metro · EGIS · MOLIT</span></li>
+            <li><span class="cr-name">© OpenStreetMap contributors (ODbL)</span></li>
+          </ul>
+        </section>
+
+        <section class="credits-block">
+          <h2>Built With</h2>
+          <ul>
+            <li><span class="cr-name">MapLibre GL JS</span></li>
+            <li><span class="cr-name">deck.gl</span></li>
+            <li><span class="cr-name">Apache ECharts + ECharts GL</span></li>
+            <li><span class="cr-name">CARTO Dark Matter basemap</span></li>
+          </ul>
+        </section>
+      </div>
+
+      <div class="credits-foot">
+        <p>
+          Road and building geometry derived from OpenStreetMap via the Overpass API.
+          Values are exploratory research outputs, not operational estimates. Verify each
+          upstream dataset's licence and attribution before public reuse.
+        </p>
+        <p class="credits-copy">Seoul Data Atlas · © 2024 Urban AI Institute</p>
+      </div>
+    </div>
+  </div>
+</div>
 
 <script src="https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js"></script>
 <script src="https://unpkg.com/echarts-gl@2/dist/echarts-gl.min.js"></script>
