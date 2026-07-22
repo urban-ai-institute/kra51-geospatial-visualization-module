@@ -10,6 +10,7 @@
   --cold-blue: #7DA7FF;
   --cyan: #39E6E6;
   --amber: #FFB86B;
+  --amber-accent: #f37d10;  /* deeper amber — guide card edge accents */
   --magenta: #E45C91;
   --success: #3FE6A5;
   --warning: #F5A45D;
@@ -1422,6 +1423,105 @@ html, body {
 /* numeric read-out beside each Appearance slider (curved sliders need a visible value) */
 .ls-aval { flex: none; min-width: 30px; text-align: right; font-family: var(--font-mono);
   font-size: 9.5px; color: var(--muted); }
+
+/* ============ TOP-RIGHT ICON BAR ============ */
+.topbar-icons { display: flex; align-items: center; gap: 6px; }
+.topbar-icons button {
+  width: 30px; height: 30px; display: flex; align-items: center; justify-content: center;
+  background: rgba(255,255,255,0.03); border: 1px solid var(--panel-border);
+  border-radius: 7px; color: var(--muted); cursor: pointer; transition: all 0.15s ease;
+}
+.topbar-icons button svg { width: 16px; height: 16px; display: block; }
+.topbar-icons button:hover { color: var(--text); border-color: rgba(255,255,255,0.2); }
+.topbar-icons button.on {
+  color: #fff; border-color: rgba(125,167,255,0.55);
+  background: rgba(125,167,255,0.16); box-shadow: 0 0 14px rgba(125,167,255,0.22);
+}
+
+/* Clean mode: strip every panel/toolbar/footer so only the map is left. The topbar
+   keeps just the icon bar so there is still a way back out. */
+body.clean-mode .side-nav,
+body.clean-mode #toolbar-stack,
+body.clean-mode #map-control,
+body.clean-mode #right-rail,
+body.clean-mode #panel-host,
+body.clean-mode #timeline,
+body.clean-mode #uhus-footer,
+body.clean-mode #map-caption,
+body.clean-mode #map-legend,
+body.clean-mode .brand,
+body.clean-mode #topbar-breadcrumb { display: none !important; }
+body.clean-mode .topbar { background: transparent; border-bottom-color: transparent; }
+/* brand + breadcrumb are hidden, so keep the icon bar pinned right instead of
+   collapsing to the start of the flex row */
+body.clean-mode .topbar-right { margin-left: auto; }
+
+/* Right-panel collapse (finer than clean mode) */
+body.hide-right-panel #panel-host { display: none !important; }
+
+/* Two fixed grid tracks have to collapse too, or the map stays boxed in:
+   .dash-body is `72px 1fr` (side-nav | content) — hiding the nav would otherwise drop
+   the content INTO the 72px track; .analysis-grid's right track is a fixed width per
+   .pcount-*, which would leave an empty column where the panel was. */
+body.clean-mode .dash-body { grid-template-columns: 1fr !important; }
+body.clean-mode .analysis-grid,
+body.hide-right-panel .analysis-grid { grid-template-columns: 1fr !important; }
+
+/* ============ GUIDE OVERLAY ============ */
+/* "What each part does" overlay from the Overview nav. Scrim dims the app; each
+   region gets a thin outline (the UI shows through). Main regions carry an always-on
+   label; the rest reveal a description on hover. */
+.guide-overlay { position: fixed; inset: 0; z-index: 100001; animation: creditsFade .2s ease-out; }
+.guide-scrim { position: absolute; inset: 0; background: rgba(3,5,10,0.55); cursor: pointer; }
+.guide-hint {
+  position: absolute; top: 14px; left: 50%; transform: translateX(-50%);
+  background: rgba(14,18,28,0.92); border: 1px solid rgba(125,167,255,0.35); border-radius: 999px;
+  padding: 7px 16px; font-family: var(--font-ui); font-size: 12px; color: var(--text);
+  box-shadow: 0 10px 30px rgba(0,0,0,0.5); pointer-events: none; white-space: nowrap;
+}
+.guide-hint b { color: var(--cold-blue); font-weight: 700; }
+.guide-close {
+  position: absolute; top: 14px; left: 14px; z-index: 3;
+  width: 32px; height: 32px; display: flex; align-items: center; justify-content: center;
+  background: rgba(14,18,28,0.92); border: 1px solid rgba(125,167,255,0.35);
+  border-radius: 8px; color: var(--text); cursor: pointer;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.5); transition: all .15s ease;
+}
+.guide-close svg { width: 15px; height: 15px; display: block; }
+.guide-close:hover { color: #fff; border-color: rgba(125,167,255,0.8); background: rgba(125,167,255,0.18); }
+/* amber region outlines */
+.guide-box {
+  position: fixed; border: 1px solid rgba(255,184,107,0.5); border-radius: 8px;
+  box-shadow: 0 0 0 9999px rgba(0,0,0,0); pointer-events: auto; transition: border-color .12s ease, background .12s ease;
+}
+.guide-box:not(.main):hover { border-color: rgba(255,184,107,0.95); background: rgba(255,184,107,0.10); }
+.guide-box.main { border-color: rgba(255,184,107,0.85); box-shadow: 0 0 18px rgba(255,184,107,0.25); }
+/* Annotation cards: a translucent dark plate (0.5) so the map still reads through,
+   with an amber uppercase title over white body text. The blur keeps the copy crisp
+   over busy map areas at that opacity; the faint amber hairline ties each card to
+   its amber region outline without competing with it. */
+.guide-label, .guide-tip {
+  position: fixed; max-width: 210px; z-index: 2;
+  background: rgba(10, 14, 22, 0.4);
+  border: 1px solid rgba(70,70,70,0.50); border-radius: 7px;
+  padding: 7px 10px; backdrop-filter: blur(3px);
+  box-shadow: 0 12px 32px rgba(0,0,0,0.55); pointer-events: none;
+  font-family: var(--font-ui); display: flex; flex-direction: column; gap: 2px;
+}
+.guide-label b, .guide-tip b {
+  color: var(--amber); font-size: 10.5px; font-weight: 700;
+  letter-spacing: 0.07em; text-transform: uppercase;
+}
+.guide-label span, .guide-tip span { color: #fff; font-size: 10.5px; line-height: 1.32; }
+/* the six big panels carry a slightly stronger hairline than the small chrome labels */
+.guide-label.big { border-color: rgba(255,184,107,0.26); }
+/* Accent on the edge facing the region the card describes (JS picks the class).
+   Colour = --amber-accent (top of file). Inset shadow rather than border-width so
+   the card never changes size after layout. */
+.guide-label.acc-left   { box-shadow: inset 1.5px 0 0 var(--amber-accent),  0 12px 32px rgba(0,0,0,0.55); }
+.guide-label.acc-right  { box-shadow: inset -1.5px 0 0 var(--amber-accent), 0 12px 32px rgba(0,0,0,0.55); }
+.guide-label.acc-top    { box-shadow: inset 0 1.5px 0 var(--amber-accent),  0 12px 32px rgba(0,0,0,0.55); }
+.guide-label.acc-bottom { box-shadow: inset 0 -1.5px 0 var(--amber-accent), 0 12px 32px rgba(0,0,0,0.55); }
 
 /* ============ CREDITS OVERLAY ============ */
 /* Full-screen about/credits page opened from the side-nav (senseable.mit.edu style). */

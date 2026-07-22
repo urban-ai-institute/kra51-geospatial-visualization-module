@@ -24,7 +24,7 @@ function enterDashboard() {
 // ---------- Dashboard boot ----------
 async function initDashboard() {
   await Atlas.load();
-  renderDatasetSwitch();
+  initTopbarIcons();
 
   map = new AtlasMap3D("map").init();
   map.onRegionClick = handleRegionClick;
@@ -40,6 +40,7 @@ async function initDashboard() {
   initNavOverlay();
   initCredits();
   initTour();
+  applyControlTitles();
   initFooter();
   refreshVariableDropdowns(); // scope the variable dropdowns to the current dataset
   Insights.init();
@@ -144,15 +145,15 @@ function initNavOverlay() {
     btn.addEventListener("mouseenter", () => { if (key === "overview") return; hoveringNav = true; showPanel(key, pinned === key ? "pinned" : "hover"); });
     btn.addEventListener("mouseleave", () => { hoveringNav = false; setTimeout(restore, 110); });
     btn.addEventListener("click", () => {
-      // Overview toggles the functional auto-demo (which pins the Map controls itself).
+      // Overview toggles the "what each part does" guide overlay (Tour auto-demo kept
+      // in code but no longer wired here).
       if (key === "overview") {
-        if (typeof Tour !== "undefined" && Tour.playing) { Tour.stop(); return; }
         pinned = null; hidePanel(); syncPinned();
-        if (typeof Tour !== "undefined") Tour.start();
+        if (typeof Guide !== "undefined") Guide.toggle();
         return;
       }
-      // Any other nav interaction takes over from the demo.
-      if (typeof Tour !== "undefined" && Tour.playing) Tour.stop();
+      // Any other nav interaction closes the guide.
+      if (typeof Guide !== "undefined" && Guide.open) Guide.close();
       if (pinned === key) { pinned = null; hidePanel(); return; }
       pinned = key; showPanel(key, "pinned");
     });
@@ -380,6 +381,223 @@ const Tour = {
 };
 function initTour() { /* fully auto-loop — Overview nav toggles Tour.start/stop, no in-page controls */ }
 
+// ============ GUIDE OVERLAY ============
+// A "what does each part do" overlay (opened from the Overview nav). Five MAIN
+// regions keep their description shown at all times; the many smaller controls get
+// a thin outline that reveals its description on hover. One config drives both this
+// overlay AND the plain hover tooltips (title=) applied to the same regions.
+// Every panel gets its description shown at once — this overlay explains PANELS.
+// (Per-button explanations are the plain hover tooltips, see CONTROL_TITLES.)
+// Keep each desc to one short line so 15 labels stay readable side by side.
+const GUIDE_REGIONS = [
+  { sel: "#map-control",       title: "Representation", desc: "How the data is drawn, and map mode", big: true, side: "bottom" },
+  { sel: "#spatial-box",       title: "Focus & grain", desc: "Camera scope and the draw unit", big: true, side: "right" },
+  { sel: "#dropdown-box",      title: "Variables",     desc: "What colours and what sizes the map", big: true, side: "right" },
+  { sel: ".panel-wrap",        title: "Detail",        desc: "Dataset fields, lineage and catalog", big: true, side: "in-top" },
+  { sel: "#insights-view",     title: "Insights",      desc: "Key numbers, chart and the story", big: true, side: "in-top" },
+  { sel: "#map-toolbar",       title: "Layers",        desc: "Boundary, roads, buildings, OSM overlays", side: "right" },
+  { sel: "#light-toolbar",     title: "Lights",        desc: "Ambient · sun · point (glare)", side: "right" },
+  { sel: "#map-legend",        title: "Legend",        desc: "Colour ↔ value scale", side: "left" },
+  { sel: "#map-caption",       title: "Caption",       desc: "One-line hint for this view", side: "right" },
+  { sel: "#timeline",          title: "Timeline",      desc: "Play the year", side: "in-top" },
+  { sel: "#uhus-footer",       title: "Status",        desc: "Active layers, view, scope, period", side: "bottom" },
+  { sel: "#topbar-icons",      title: "Quick actions", desc: "Guide · clean mode · panel · reset view", side: "bottom" },
+  { sel: ".side-nav",          title: "Navigation",    desc: "Overview · Library · Map · Saved · Settings", side: "right-mid" },
+];
+
+const Guide = {
+  open: false, _el: null, _tip: null, _onKey: null, _onResize: null, _regions: [],
+
+  toggle() { this.open ? this.close() : this.start(); },
+  start() {
+    if (this.open) return;
+    this.open = true;
+    if (window.AtlasNav) window.AtlasNav.pinMap();      // reveal the Representation panel so its rect is real
+    document.querySelector('.side-nav .nav-item[data-nav="overview"]')?.classList.add("active");
+    // build overlay
+    const ov = document.createElement("div");
+    ov.className = "guide-overlay"; ov.id = "guide-overlay";
+    ov.innerHTML = `<div class="guide-scrim"></div>
+      <button class="guide-close" type="button" aria-label="Close guide" title="Close guide">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 6l12 12M18 6L6 18"/></svg>
+      </button>
+      <div class="guide-hint">What each panel does · <b>Esc</b> to close</div>`;
+    ov.querySelector(".guide-scrim").addEventListener("click", () => this.close());
+    ov.querySelector(".guide-close").addEventListener("click", () => this.close());
+    this._tip = document.createElement("div"); this._tip.className = "guide-tip"; this._tip.hidden = true;
+    ov.appendChild(this._tip);
+    document.body.appendChild(ov);
+    this._el = ov;
+    this._layout();
+    // pinMap() above reflows the panel/rail, so the first rects are stale — re-measure
+    // once the pin has settled (next frame, then after the panel transition).
+    requestAnimationFrame(() => this._layout());
+    setTimeout(() => this._layout(), 340);
+    this._onKey = (e) => { if (e.key === "Escape") this.close(); };
+    this._onResize = () => this._layout();
+    window.addEventListener("keydown", this._onKey);
+    window.addEventListener("resize", this._onResize);
+  },
+  close() {
+    if (!this.open) return;
+    this.open = false;
+    window.removeEventListener("keydown", this._onKey);
+    window.removeEventListener("resize", this._onResize);
+    if (this._el) this._el.remove();
+    this._el = this._tip = null;
+    document.querySelector('.side-nav .nav-item[data-nav="overview"]')?.classList.remove("active");
+    if (window.AtlasNav) window.AtlasNav.unpin();
+  },
+  _layout() {
+    if (!this._el) return;
+    this._el.querySelectorAll(".guide-box,.guide-label").forEach((n) => n.remove());
+    const vw = window.innerWidth, vh = window.innerHeight;
+    const pending = [];
+    GUIDE_REGIONS.forEach((r) => {
+      const el = document.querySelector(r.sel);
+      if (!el) return;
+      const b = el.getBoundingClientRect();
+      if (b.width < 6 || b.height < 6) return;           // skip hidden/empty regions
+      const box = document.createElement("div");
+      box.className = "guide-box" + (r.big ? " main" : "");
+      box.style.cssText = `left:${b.left}px;top:${b.top}px;width:${b.width}px;height:${b.height}px;`;
+      const lab = document.createElement("div");
+      lab.className = "guide-label" + (r.big ? " big" : "");
+      lab.style.visibility = "hidden";
+      lab.innerHTML = `<b>${r.title}</b><span>${r.desc}</span>`;
+      this._el.appendChild(lab);
+      pending.push({ lab, b, side: r.side });
+      this._el.appendChild(box);
+    });
+    this._placeLabels(pending, vw, vh);
+  },
+  // Place each main label at its preferred side, then resolve overlaps: a colliding
+  // label slides below the one it hit (the floating control panels cluster top-left,
+  // so fixed sides alone are not enough).
+  _placeLabels(items, vw, vh) {
+    const gap = 10, pad = 8, placed = [];
+    const free = (l, t, w, h) => !placed.some((p) =>
+      !(l + w <= p.left || l >= p.left + p.w || t + h <= p.top || t >= p.top + p.h));
+    const clampL = (l, w) => Math.max(pad, Math.min(l, vw - w - pad));
+    const clampT = (t, h) => Math.max(pad, Math.min(t, vh - h - pad));
+
+    items.forEach((it) => {
+      const lw = it.lab.offsetWidth, lh = it.lab.offsetHeight, b = it.b;
+      // preferred spot, then the other sides, then the nearest free grid cell
+      const cands = [];
+      const add = (l, t) => cands.push([clampL(l, lw), clampT(t, lh)]);
+      if (it.side === "right")           add(b.right + gap, b.top);
+      else if (it.side === "right-mid")  add(b.right + gap, b.top + b.height / 2 - lh / 2);
+      else if (it.side === "left")       add(b.left - lw - gap, b.top);
+      else if (it.side === "in-top")     add(b.left + b.width / 2 - lw / 2, b.top + 14);
+      else                               add(b.left, b.bottom + gap);
+      const pref = cands[0];
+      // alternates, tried only after the in-panel search below
+      add(b.right + gap, b.top); add(b.left - lw - gap, b.top);
+      add(b.left, b.bottom + gap); add(b.left, b.top - lh - gap);
+      add(b.left + b.width / 2 - lw / 2, b.top + 14);
+
+      let spot = free(pref[0], pref[1], lw, lh) ? pref : null;
+      // 1st fallback: slide DOWN inside the region's own box. A big panel's card
+      // belongs with its panel — without this, a blocked `in-top` falls through to the
+      // "below the panel" candidate and gets clamped to the bottom of the screen.
+      if (!spot) {
+        const x0 = Math.max(pad, b.left + 6), x1 = Math.min(vw - lw - pad, b.right - lw - 6);
+        const y0 = Math.max(pad, b.top + 6), y1 = Math.min(vh - lh - pad, b.bottom - lh - 6);
+        outer:
+        for (let t = y0; t <= y1; t += 14) {
+          for (let l = x0; l <= x1; l += 28) {
+            if (free(l, t, lw, lh)) { spot = [l, t]; break outer; }
+          }
+        }
+      }
+      // 2nd: the other sides of the region
+      if (!spot) spot = cands.slice(1).find(([l, t]) => free(l, t, lw, lh));
+      // 3rd: nearest free cell anywhere, measured from the region's centre
+      if (!spot) {
+        const cx = b.left + b.width / 2, cy = b.top + b.height / 2, grid = [];
+        for (let t = pad; t <= vh - lh - pad; t += 16) {
+          for (let l = pad; l <= vw - lw - pad; l += 32) {
+            if (free(l, t, lw, lh)) grid.push([l, t, (l + lw / 2 - cx) ** 2 + (t + lh / 2 - cy) ** 2]);
+          }
+        }
+        grid.sort((a, b2) => a[2] - b2[2]);
+        spot = grid.length ? [grid[0][0], grid[0][1]] : cands[0];
+      }
+      it.lab.style.left = spot[0] + "px"; it.lab.style.top = spot[1] + "px"; it.lab.style.visibility = "";
+      // Accent on the card edge that FACES its region, so the card always points back
+      // at what it describes — including when it sits INSIDE the region (a card at the
+      // bottom of a tall panel gets a top accent, i.e. "the panel is above me").
+      // Inset shadow → no size change, so placement holds.
+      if (it.side === "in-top") {
+        it.lab.classList.add("acc-top");          // in-top cards always point up
+      } else {
+        const lcx = spot[0] + lw / 2, lcy = spot[1] + lh / 2;
+        const dx = lcx - (b.left + b.width / 2), dy = lcy - (b.top + b.height / 2);
+        it.lab.classList.add(Math.abs(dx) > Math.abs(dy)
+          ? (dx > 0 ? "acc-left" : "acc-right")
+          : (dy > 0 ? "acc-top" : "acc-bottom"));
+      }
+      placed.push({ left: spot[0], top: spot[1], w: lw, h: lh });
+    });
+  },
+  _showTip(r, b) {
+    const t = this._tip; if (!t) return;
+    t.innerHTML = `<b>${r.title}</b><span>${r.desc}</span>`;
+    t.hidden = false;
+    const vw = window.innerWidth, tw = Math.min(240, t.offsetWidth), th = t.offsetHeight, gap = 8;
+    let left = b.left, top = b.bottom + gap;
+    if (top + th > window.innerHeight - 8) top = b.top - th - gap;
+    left = Math.max(8, Math.min(left, vw - tw - 8));
+    t.style.left = left + "px"; t.style.top = top + "px";
+  },
+};
+
+// Plain hover tooltips: one per CONTROL, describing that exact button/input — not the
+// panel it sits in (a whole-panel tooltip on every hover is useless). The guide
+// overlay is what explains panels.
+const CONTROL_TITLES = [
+  ['#map-toolbar button[data-toolbar-layer="labels"]', "Region name labels"],
+  ['#map-toolbar button[data-toolbar-layer="boundary"]', "Region outlines"],
+  ['#map-toolbar button[data-toolbar-layer="roads"]', "Road glow layer"],
+  ['#map-toolbar button[data-toolbar-layer="buildings"]', "3D buildings — downloads once (~7 MB)"],
+  ['#mc-mode button[data-mode="3d"]', "Tilted 3D camera"],
+  ['#mc-mode button[data-mode="2d"]', "Flat top-down camera"],
+  ['#mc-selstyle button[data-selstyle="boundary"]', "Mark the selected dong with a glowing outline"],
+  ['#mc-selstyle button[data-selstyle="pillar"]', "Mark the selected dong with a vertical pillar"],
+  ["#mc-autorotate", "Slowly spin the map"],
+  ['#grain-seg button[data-grain="seoul"]', "Draw one shape for all of Seoul"],
+  ['#grain-seg button[data-grain="gu"]', "Draw the 25 districts (gu)"],
+  ['#grain-seg button[data-grain="dong"]', "Draw the 422 neighbourhoods (dong)"],
+  ['#target-seg button[data-target="seoul"]', "Move the camera to all of Seoul"],
+  ['#target-seg button[data-target="gu"]', "Move the camera to a district"],
+  ['#target-seg button[data-target="dong"]', "Move the camera to a neighbourhood"],
+  ["#dd-gu", "Pick a district"],
+  ["#dd-dong", "Pick a neighbourhood"],
+  ["#dd-color", "Variable that colours the map"],
+  ["#dd-height", "Variable that sets the height"],
+  ["#tl-play", "Play / pause the year"],
+  ['#tl-speeds button[data-speed="1"]', "1× speed"],
+  ['#tl-speeds button[data-speed="2"]', "2× speed"],
+  ['#tl-speeds button[data-speed="4"]', "4× speed"],
+  ["#tl-reset", "Back to the static (non-animated) view"],
+  ["#tl-scrub", "Drag to a specific day"],
+  ['.rail-tab[data-panel-tab="detail"]', "Dataset detail & catalog"],
+  ['.rail-tab[data-panel-tab="insights"]', "Key numbers and charts"],
+  ['.rail-tab[data-panel-tab="library"]', "Browse the source files"],
+  ['.side-nav .nav-item[data-nav="overview"]', "Guide — what each panel does"],
+  ['.side-nav .nav-item[data-nav="library"]', "Source files"],
+  ['.side-nav .nav-item[data-nav="map"]', "Map controls"],
+  ['.side-nav .nav-item[data-nav="saved"]', "Saved views"],
+  ['.side-nav .nav-item[data-nav="settings"]', "Display settings"],
+  ['.side-nav .nav-item[data-nav="credits"]', "About & credits"],
+];
+function applyControlTitles() {
+  CONTROL_TITLES.forEach(([sel, text]) => {
+    document.querySelectorAll(sel).forEach((el) => { if (!el.title) el.title = text; });
+  });
+}
+
 // ---------- Time-flow controller ----------
 const timeState = { playing: false, dayIndex: 0, speed: 1, _last: 0, _acc: 0, _raf: null };
 
@@ -462,22 +680,43 @@ function applyDay(i) {
   Timeline.setDay(i);
 }
 
-function currentDataset() { return DATASETS.find((d) => d.id === state.datasetId); }
+// The top-right "Datasets" pill switcher was removed: clicking a pill only moved its
+// own highlight (state.datasetId was read nowhere else), so it demoed a switch that
+// did nothing. Real dataset switching lives in the catalog nodes / Library
+// (Panels.selectNode / renderDatasetDetail). Its slot now holds #topbar-icons.
 
-// ---------- Dataset switch ----------
-function renderDatasetSwitch() {
-  const el = document.getElementById("dataset-switch");
-  el.innerHTML = DATASETS.map((ds) => {
-    const meta = BADGE_META[ds.badge];
-    return `<div class="ds-pill ${ds.id === state.datasetId ? "selected" : ""} ${ds.disabled ? "disabled" : ""}" data-id="${ds.id}">
-      <span class="dot" style="background:${meta.dot}"></span>${ds.name}</div>`;
-  }).join("");
-  el.querySelectorAll(".ds-pill").forEach((pill) => {
-    pill.addEventListener("click", () => {
-      const ds = DATASETS.find((d) => d.id === pill.dataset.id);
-      if (ds.disabled) return;
-      state.datasetId = ds.id;
-      renderDatasetSwitch();
+// ---------- top-right icon bar ----------
+function initTopbarIcons() {
+  const bar = document.getElementById("topbar-icons");
+  if (!bar) return;
+  const afterLayoutChange = () => {
+    // deck/maplibre must re-measure once the grid reflows around a hidden panel
+    setTimeout(() => { if (map && map.map && map.map.resize) map.map.resize(); }, 260);
+  };
+  const actions = {
+    guide: (btn) => { if (typeof Guide !== "undefined") { Guide.toggle(); btn.classList.toggle("on", Guide.open); } },
+    clean: (btn) => {
+      const on = document.body.classList.toggle("clean-mode");
+      btn.classList.toggle("on", on);
+      afterLayoutChange();
+    },
+    rightpanel: (btn) => {
+      const on = document.body.classList.toggle("hide-right-panel");
+      btn.classList.toggle("on", on);
+      afterLayoutChange();
+    },
+    resetview: () => {
+      if (map && map.map) map.map.easeTo({
+        center: [SEOUL_CENTER.longitude, SEOUL_CENTER.latitude],
+        zoom: SEOUL_CENTER.zoom, pitch: SEOUL_CENTER.pitch, bearing: SEOUL_CENTER.bearing,
+        duration: 700,
+      });
+    },
+  };
+  bar.querySelectorAll("button[data-topicon]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const fn = actions[btn.dataset.topicon];
+      if (fn) fn(btn);
     });
   });
 }
