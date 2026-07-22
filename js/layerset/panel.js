@@ -8,38 +8,8 @@
 // Drives the real engine: Panels.applyRepresentation + map.unifyLayerColors /
 // setSectorView / setColorScheme. Other datasets keep the classic controls.
 (function () {
-  const REP_ICON = { choropleth: "▦", bars: "▮", columns: "▮", rings: "◎", radial: "✳", dominant: "◧", buildingmix: "◱", points: "⊙", signedcols: "⇅", divided: "◨" };
-  // colour themes — keys match map.js COLOR_SCHEMES; css gradient for the swatch
-  const THEMES = [
-    { key: "default", label: "Amber", grad: "linear-gradient(90deg,#3a2a10,#ffc857,#ff5a28)" },
-    { key: "blue", label: "Blue", grad: "linear-gradient(90deg,#0e121c,#466eb4,#7db4ff)" },
-    { key: "teal", label: "Teal", grad: "linear-gradient(90deg,#0c1618,#289c8c,#50e6c8)" },
-    { key: "viridis", label: "Viridis", grad: "linear-gradient(90deg,#281e46,#2da096,#f0e25c)" },
-    { key: "magenta", label: "Magenta", grad: "linear-gradient(90deg,#120e18,#b43c96,#ff6ec8)" },
-  ];
-  // A GROUP holds variable-layers; each layer picks a DESIGN (its representation),
-  // which maps to real map layers. Different designs composite together.
-  // This replaces the old "Data layers" checkboxes — the designs live here now.
-  const CHANNELS = [
-    { key: "color", label: "Color", icon: "▦", layers: ["choropleth"] },
-    { key: "height", label: "Height", icon: "▮", layers: ["columns"], height: true },
-    { key: "points", label: "Points", icon: "⊙", layers: ["pointCore", "pointHalo"] },
-    { key: "heatmap", label: "Heatmap", icon: "◍", layers: ["heatmap"] },
-    { key: "hexbin", label: "Hexbin", icon: "⬡", layers: ["hexbin"] },
-    { key: "dots", label: "Dot field", icon: "⋰", layers: ["dotField"] },
-    { key: "rings", label: "Value rings", icon: "◎", layers: ["influence"] },
-  ];
-
-  // Elevation slider curve. Representations tune elevation between ~0.12 and 1.4, and
-  // the low end is where Seoul actually reads, so a linear track is unusable there.
-  // position 0..1 -> value = MAX * position^GAMMA (and back), so ~half the travel
-  // covers 0..0.2 instead of a few pixels.
-  const ELEV_MAX = 1.6, ELEV_GAMMA = 3;
-  const ELEV_VAL = (pos) => +(ELEV_MAX * Math.pow(Math.max(0, Math.min(1, +pos || 0)), ELEV_GAMMA)).toFixed(3);
-  const ELEV_POS = (val) => Math.pow(Math.max(0, Math.min(1, (+val || 0) / ELEV_MAX)), 1 / ELEV_GAMMA).toFixed(4);
-
-  // Every design a single variable can take (each maps to a REP_TYPES entry).
-  const DESIGN_REPS = ["choropleth", "bars", "points", "heatmap", "hexbin", "dotfield", "valuerings"];
+  // REP_ICON / THEMES / CHANNELS / DESIGN_REPS / ELEV_* moved to
+  // js/config/representation.js — they are globals now, loaded before this file.
   // "Compare" = show several variables at once, each on its own design. This is the
   // composite group; Single deliberately stays ONE variable.
   const comparePage = (measures) => ({ key: "comparison", label: "Compare", icon: "⇄", supported: true,
@@ -301,11 +271,48 @@
       const cfg = this._cfg(dsId);
       const activeKey = this._page[dsId];
       const active = this._pageByKey(dsId, activeKey);
-      const builtins = cfg.pages.map((p) =>
-        `<button class="ls-b${activeKey === p.key ? " on" : ""}${p.supported ? "" : " ls-dis"}" data-ls-page="${p.key}"${p.supported ? "" : ` title="${p.msg}"`}><i>${p.icon}</i><span>${p.label}</span></button>`).join("");
-      const saved = this._savedFor(dsId).map((s) =>
-        `<button class="ls-b${activeKey === "saved:" + s.id ? " on" : ""}" data-ls-page="saved:${s.id}" title="Saved preset"><i>★</i><span>${s.name}</span></button>`).join("");
-      const presetHTML = `<div class="ls-row-l">Preset</div><div class="ls-seg ls-seg-wrap">${builtins}${saved}</div>`;
+      // One ROW per preset: [structure] [its representative design ▾]. The design list is
+      // the page's own `reps`, so each structure only offers what it can actually draw.
+      // Design picker: the row carries only the current design's ICON; tapping it
+      // expands a list of icon + name INSIDE the row stack. (An absolutely-positioned
+      // popover would be clipped — .right-rail is 172px wide with overflow-y:auto.)
+      const curRep = (p) => (activeKey === p.key) ? this._repFor(dsId, p) : (p.reps || [])[0];
+      const repPicker = (p) => {
+        const reps = p.reps || [];
+        if (reps.length <= 1) return "";
+        const cur = curRep(p);
+        return `<button class="ls-prow-rep" data-ls-repmenu="${p.key}" title="${this._repLabel(cur)} — change design">${REP_ICON[cur] || "▦"}</button>`;
+      };
+      const repMenu = (p) => {
+        const reps = p.reps || [];
+        if (reps.length <= 1) return "";
+        const cur = curRep(p);
+        return `<div class="ls-repmenu" data-ls-repmenu-for="${p.key}" hidden>${reps.map((r) =>
+          `<button class="ls-repopt${r === cur ? " on" : ""}" data-ls-prep="${p.key}" data-ls-repval="${r}"><i>${REP_ICON[r] || "▦"}</i><span>${this._repLabel(r)}</span></button>`).join("")}</div>`;
+      };
+      // While a channel plays the map draws that channel's design, not the structure's —
+      // so only the channel row is highlighted then.
+      const playing = this._isTime(dsId);
+      const pageRow = (p) => {
+        const dis = p.supported === false;
+        return `<div class="ls-prowwrap">
+          <div class="ls-prow${!playing && activeKey === p.key ? " on" : ""}${dis ? " ls-dis" : ""}"${dis && p.msg ? ` title="${p.msg}"` : ""}>
+            <button class="ls-prow-pick"${dis ? " disabled" : ` data-ls-page="${p.key}"`}><i>${p.icon}</i><span>${p.label}</span></button>
+            ${dis ? "" : repPicker(p)}</div>
+          ${dis ? "" : repMenu(p)}</div>`;
+      };
+      const savedRow = (s) => `<div class="ls-prow${!playing && activeKey === "saved:" + s.id ? " on" : ""}">
+        <button class="ls-prow-pick" data-ls-page="saved:${s.id}" title="Saved preset"><i>★</i><span>${s.name}</span></button></div>`;
+      // Temporal channels are rows too — clicking one starts playing it, clicking any
+      // static row above stops. (Replaces the old Static/Animate toggle.)
+      const curChan = playing ? this._activeChannel(dsId) : null;
+      const chanRow = (c) => `<div class="ls-prow${c.rep === curChan ? " on" : ""}">
+        <button class="ls-prow-pick" data-ls-chan="${c.rep}"><i>▶</i><span>${c.label}</span></button></div>`;
+
+      const presetHTML = `<div class="ls-row-l">Preset</div><div class="ls-prows">${
+        cfg.pages.map(pageRow).join("")
+        + this._savedFor(dsId).map(savedRow).join("")
+        + (cfg.temporal ? this._timeChannels(dsId).map(chanRow).join("") : "")}</div>`;
 
       // Variable / group picker. For a group page, list the active group's layers so you can
       // swap what each one shows without opening the full editor; otherwise a single dropdown.
@@ -325,28 +332,25 @@
         if (measures.length > 1) measHTML = `<div class="ls-row-l">Variable</div>${this._measureSelect(measures, (typeof map !== "undefined" && map) ? map.colorBy : null)}`;
       }
 
-      // temporal toggle, plus (while animating) which channel plays
-      let timeHTML = "";
-      if (cfg.temporal) {
-        const on = this._isTime(dsId);
-        timeHTML = `<div class="ls-row-l">Time</div><div class="ls-seg">
-          <button class="ls-b${on ? "" : " on"}" data-ls-time="off"><i>▪</i><span>Static</span></button>
-          <button class="ls-b${on ? " on" : ""}" data-ls-time="on"><i>▶</i><span>Animate</span></button></div>`;
-        const chans = this._timeChannels(dsId);
-        if (on && chans.length > 1) {
-          const cur = this._activeChannel(dsId);
-          timeHTML += `<div class="ls-row-l">Plays</div><div class="ls-seg ls-seg-wrap">${chans.map((c) =>
-            `<button class="ls-b${c.rep === cur ? " on" : ""}" data-ls-chan="${c.rep}"><i>▶</i><span>${c.label}</span></button>`).join("")}</div>`;
-        }
-      }
-
-      host.innerHTML = `<div class="ls-inner">${presetHTML}${measHTML}${timeHTML}</div>`;
-      host.querySelectorAll("[data-ls-page]").forEach((b) => b.onclick = () => this._selectPage(dsId, b.dataset.lsPage));
-      host.querySelectorAll("[data-ls-time]").forEach((b) => b.onclick = () => this._setTime(dsId, b.dataset.lsTime === "on"));
-      host.querySelectorAll("[data-ls-chan]").forEach((b) => b.onclick = () => this._setTime(dsId, true, b.dataset.lsChan));
+      // (Static/Animate toggle removed — the channel rows above own play/stop.)
+      host.innerHTML = `<div class="ls-inner">${presetHTML}${measHTML}</div>`;
+      // every control routes through applyView so the map, this rail and the left
+      // editor can never drift apart again
+      host.querySelectorAll("[data-ls-page]").forEach((b) => b.onclick = () => this.applyView(dsId, { pageKey: b.dataset.lsPage }));
+      host.querySelectorAll("[data-ls-chan]").forEach((b) => b.onclick = () => this.applyView(dsId, { channel: b.dataset.lsChan }));
+      // design icon → expand/collapse that row's picker (pure DOM, no re-render)
+      host.querySelectorAll("[data-ls-repmenu]").forEach((b) => b.onclick = () => {
+        const menu = host.querySelector('[data-ls-repmenu-for="' + b.dataset.lsRepmenu + '"]');
+        const willOpen = menu && menu.hidden;
+        host.querySelectorAll(".ls-repmenu").forEach((m) => { m.hidden = true; });
+        host.querySelectorAll(".ls-prow-rep").forEach((x) => x.classList.remove("open"));
+        if (willOpen) { menu.hidden = false; b.classList.add("open"); }
+      });
+      host.querySelectorAll("[data-ls-repval]").forEach((b) => b.onclick = () =>
+        this.applyView(dsId, { pageKey: b.dataset.lsPrep, rep: b.dataset.lsRepval }));
       host.querySelectorAll("[data-ls-cvar]").forEach((s) => s.onchange = () => this._setLayerField(dsId, s.dataset.lsCvar, "measure", s.value));
       const sel = host.querySelector("[data-ls-measure]");
-      if (sel) sel.onchange = () => this._applyMeasure(dsId, sel.value);
+      if (sel) sel.onchange = () => this.applyView(dsId, { measure: sel.value });
     },
 
     // ---- Single = group of variable-layers (composite) ----
@@ -644,8 +648,41 @@
       const sv = (typeof map !== "undefined" && map) ? map.sectorView : null;
       const glyphPage = (this._cfg(dsId).pages || []).find((p) => p.glyph);
       if (glyphPage && sv && (glyphPage.reps || []).includes(sv)) return glyphPage.key;
+      // sectorView is only set for glyph reps, and sync() can run BEFORE the dataset's
+      // representation is applied — so also match the active rep against each page.
+      const owner = this._pageOwningRep(dsId, (typeof Panels !== "undefined") ? Panels.selectedRep : null);
+      if (owner) return owner.key;
       const first = this._firstPage(dsId);
       return first ? first.key : "single";
+    },
+    // First page whose design list contains `repId` (null when none / no rep).
+    _pageOwningRep(dsId, repId) {
+      if (!repId) return null;
+      const pages = (this._cfg(dsId) && this._cfg(dsId).pages) || [];
+      return pages.find((p) => (p.reps || []).includes(repId)) || null;
+    },
+    // Keep the highlighted preset in step with what the map actually draws.
+    // Called from Panels.applyRepresentation — state + re-render only, never applies a
+    // representation, so there is no loop back into applyRepresentation.
+    syncPageToRep(dsId, repId) {
+      if (!dsId || !repId || !this._cfg(dsId)) return;
+      // Ignore representations WE are applying. _applySingle/_applyAcross call
+      // applyRepresentation with the group's `baseRep` (choropleth) mid-flight; without
+      // this guard that bounced back here, moved _page to the first page owning
+      // choropleth ("single"), and _applySingle then read _grp[ds].single — undefined —
+      // and threw. Compare/Across were dead as a result.
+      if (this._applying) return;
+      const current = this._pageByKey(dsId, this._page[dsId]);
+      // Group pages (Compare / Across) have no `reps` of their own — they composite
+      // layers over a baseRep — so a matching rep says nothing about which page is active.
+      if (current && current.group) return;
+      // the user's page still owns this design → leave their choice alone (Single and
+      // Total both offer DESIGN_REPS, so an applied `choropleth` must not flip pages)
+      if (current && (current.reps || []).includes(repId)) return;
+      const owner = this._pageOwningRep(dsId, repId);
+      if (!owner || owner.key === this._page[dsId]) return;
+      this._page[dsId] = owner.key;
+      this.sync();
     },
 
     // ---- engine actions ----
@@ -684,14 +721,62 @@
       // and _applyAppearance both re-applies user overrides and reads the rest back.
       this._applyAppearance(dsId);
       const list = this._measures(page.measures);
-      if (list.length) map.unifyLayerColors(measure || this._validMeasure(map.colorBy, page.measures) || list[0].key);
+      if (list.length) {
+        const key = measure || this._validMeasure(map.colorBy, page.measures) || list[0].key;
+        // Height must follow the chosen variable too. applyRepresentation() above already
+        // unified BOTH channels onto the dataset's default metric (RHSI), so colouring
+        // alone left every bar — and the label ranking, which sorts by height — stuck on
+        // RHSI no matter which variable was picked.
+        map.unifyLayerColors(key);
+        map.unifyLayerHeights(key);
+      }
       if (typeof updateLegend === "function") updateLegend();
       this.sync();
+    },
+    // ---- single entry point for "what the map is showing" ----------------------------
+    // structure(page) + representation + variable are ONE decision. They used to be set
+    // from several places that didn't know about each other, which is where the
+    // preset-vs-map mismatch (F7) and the height-stuck-on-RHSI bug (F8) came from.
+    // Every row control below routes through here.
+    applyView(dsId, opts) {
+      const o = opts || {};
+      if (typeof map === "undefined" || !map || typeof Panels === "undefined") return;
+
+      if (o.channel) {                        // temporal channel row → play it
+        if (o.pageKey) this._page[dsId] = o.pageKey;
+        this._setTime(dsId, true, o.channel);
+        return;
+      }
+      // Variable-only change keeps the light path (no representation re-apply, which
+      // would reset the tuned sliders via _applyAppearance).
+      if (!o.pageKey && !o.rep && o.measure) { this._applyMeasure(dsId, o.measure); return; }
+      // Changing structure: reuse _selectPage — it already handles saved presets,
+      // group/glyph pages and leaving time mode. Do not reimplement that here.
+      if (o.pageKey && o.pageKey !== this._page[dsId]) {
+        this._selectPage(dsId, o.pageKey);
+        if (!o.rep && !o.measure) return;     // plain row click — done
+      }
+      const page = this._pageByKey(dsId, this._page[dsId]);
+      if (!page || page.supported === false) { this.sync(); return; }
+      this._time[dsId] = false;
+      if (page.group && !o.rep) { this._applyActive(dsId); return; }
+      this._applyPage(dsId, o.rep || this._repFor(dsId, page), o.measure);
+    },
+    // The representation a page is currently showing: the applied one when it belongs to
+    // this page, otherwise the page's first (its "representative") design.
+    _repFor(dsId, page) {
+      const cur = (typeof Panels !== "undefined") ? Panels.selectedRep : null;
+      if (cur && (page.reps || []).includes(cur)) return cur;
+      return (page.reps && page.reps[0]) || null;
+    },
+    _repLabel(rep) {
+      return (typeof REP_TYPES !== "undefined" && REP_TYPES[rep] && REP_TYPES[rep].label) || rep;
     },
     _applyMeasure(dsId, key) {
       if (typeof map === "undefined" || !map || !key) return;
       if (typeof exitTimeMode === "function") exitTimeMode();
       map.unifyLayerColors(key);
+      map.unifyLayerHeights(key);   // keep height on the same variable as the colour
       if (typeof updateLegend === "function") updateLegend();
       this.sync();
     },

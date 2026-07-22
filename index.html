@@ -396,6 +396,9 @@
 <!-- Classic scripts: they run in document order, after the CDN libraries above.
      Freshness is handled by ETag revalidation (see _headers), not a query string. -->
 <script src="js/data.js"></script>
+<!-- Config: pure declaration tables, no logic. Must load before their consumers
+     (panels.js / layerset/panel.js) since these are plain globals. -->
+<script src="js/config/representation.js"></script>
 <script src="js/map.js"></script>
 <script src="js/charts.js"></script>
 <script src="js/timeline.js"></script>

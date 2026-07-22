@@ -246,36 +246,7 @@ const DATASETS_META = {
 // here only ADD the layers, sector encoding, grain, camera mode and slider tuning
 // that make each dataset read best. Everything omitted falls back to a default
 // (grain "dong", mode "3d", color = the dataset's metric key, time = its map mode).
-// A representation = a recipe for the map state: which layers, whether it's a sector
-// glyph, time-flow, or 2D, plus slider tuning. Colour/height come from the dataset's
-// own metric (DATASETS_META[id].map.key). `applyRepresentation` applies one and mirrors
-// it onto every left-panel control.
-const REP_TYPES = {
-  choropleth: { label: "Choropleth",   layers: ["roads", "choropleth", "labels"], sliders: { elevation: 0.12, radius: 1.0, opacity: 1.0, glow: 1.0 } },
-  // Purpose-built flat 2D map: top-down (pitch 0), no glow, elevation locked flat.
-  // Separate from `choropleth` so the 3D view can rise while this stays a clean 2D
-  // comparison surface. Sales `flat` is static (does NOT enter time playback).
-  flat:       { label: "Flat 2D",      layers: ["roads", "choropleth", "labels"], mode: "2d", sliders: { elevation: 0, radius: 1.0, opacity: 1.0, glow: 0.9 } },
-  bars:       { label: "3D bars",      layers: ["boundary", "roads", "columns", "labels"], height: true, sliders: { elevation: 0.12, radius: 1.0, opacity: 0.95, glow: 1.0 } },
-  points:     { label: "Glow points",  layers: ["boundary", "roads", "pointCore", "pointHalo", "labels"], sliders: { elevation: 0.12, radius: 1.0, opacity: 0.9, glow: 1.4 } },
-  rings:      { label: "Rings",        layers: ["boundary"], sector: "rings", sliders: { elevation: 1.0, radius: 1.2, opacity: 0.85, glow: 1.3 } },
-  radial:     { label: "Radial",       layers: ["boundary"], sector: "radial", sliders: { elevation: 1.0, radius: 1.2, opacity: 0.85, glow: 1.3 } },
-  columns:    { label: "Columns",      layers: ["boundary"], sector: "columns", sliders: { elevation: 1.4, radius: 1.1, opacity: 0.85, glow: 1.2 } },
-  dominant:   { label: "Dominant",     layers: ["boundary"], sector: "dominant", sliders: { elevation: 0.12, radius: 1.0, opacity: 0.95, glow: 1.0 } },
-  signedcols: { label: "Signed 3D",    layers: ["boundary"], sector: "signedcols", sliders: { elevation: 1.4, radius: 1.1, opacity: 0.9, glow: 1.2 } },
-  divided:    { label: "Divided",      layers: ["boundary", "roads"], sector: "divided", sliders: { elevation: 0.12, radius: 1.0, opacity: 0.95, glow: 1.0 } },
-  buildingmix:{ label: "Buildings",    layers: ["boundary"], sector: "buildingmix", sliders: { elevation: 1.0, radius: 1.0, opacity: 0.9, glow: 1.0 } },
-  heatfield:  { label: "Heat field",   layers: ["boundary"], time: true, compare: false, sliders: { elevation: 1.0, radius: 1.8, opacity: 0.9, glow: 1.4 } },
-  compare:    { label: "Heat × sales", layers: ["boundary"], time: true, compare: true, sliders: { elevation: 1.0, radius: 1.3, opacity: 0.85, glow: 1.4 } },
-  // Former "Data layers" toggles, promoted to first-class representations so every
-  // visual design is picked as a representation instead of a raw layer checkbox.
-  heatmap:    { label: "Heatmap",      layers: ["boundary", "roads", "heatmap"], sliders: { elevation: 0.12, radius: 1.4, opacity: 0.9, glow: 1.3 } },
-  hexbin:     { label: "Hexbin",       layers: ["boundary", "roads", "hexbin"], sliders: { elevation: 0.6, radius: 1.0, opacity: 0.9, glow: 1.0 } },
-  dotfield:   { label: "Dot field",    layers: ["boundary", "roads", "dotField"], sliders: { elevation: 0.12, radius: 1.0, opacity: 0.9, glow: 1.1 } },
-  valuerings: { label: "Value rings",  layers: ["boundary", "roads", "influence"], sliders: { elevation: 0.12, radius: 1.2, opacity: 0.9, glow: 1.2 } },
-  dashboard:  { label: "Dashboard",    layers: ["boundary", "roads", "choropleth", "columns"], height: true, sliders: { elevation: 0.2, radius: 1.0, opacity: 1.0, glow: 1.0 } },
-  boundary:   { label: "Base map",     layers: ["boundary", "roads", "labels"], mode: "2d", sliders: { elevation: 1.0, radius: 1.0, opacity: 0.85, glow: 0.8 } },
-};
+// REP_TYPES moved to js/config/representation.js (loaded before this file).
 // Each dataset's Representation menu — first entry is the default (recommended) view.
 const DATASET_REPS = {
   // Static designs are listed alongside the time views so a dataset can be shown
@@ -507,6 +478,21 @@ const Panels = {
     // Reps that lean on dong data (e.g. hexbin) degrade gracefully rather than break.
     m.setSectorView(sector);
 
+    // The Buildings representation needs buildings.json, which is lazy. Without this it
+    // silently fell back to stacked columns (_buildingMixLayers) and looked like a
+    // half-built feature — picking the rep now downloads it, same as the toolbar toggle.
+    if (sector === "buildingmix" && typeof Atlas.ensureBuildings === "function" && !Atlas.buildings) {
+      if (typeof showDownloadNotice === "function") showDownloadNotice("Downloading 3D buildings", "about 7 MB, one time");
+      Atlas.ensureBuildings((loaded, total) => {
+        if (typeof updateDownloadNotice === "function") updateDownloadNotice(loaded, total);
+      }).then((b) => {
+        if (typeof hideDownloadNotice === "function" && b) hideDownloadNotice();
+        else if (typeof showDownloadNotice === "function" && !b) showDownloadNotice("3D buildings unavailable", "could not load the data", true);
+        m._bldgCache = null; m._staticCache = null; m.render();
+        if (typeof updateLegend === "function") updateLegend();
+      });
+    }
+
     // slider tuning (syncs the slider inputs + read-outs)
     if (rt.sliders) this._applyView(rt.sliders);
 
@@ -525,6 +511,9 @@ const Panels = {
     if (typeof syncToolbar === "function") syncToolbar();
     if (typeof syncLayerVarSelects === "function") syncLayerVarSelects();
     this._syncRepControl(id, repId);
+    // Layer-Set datasets infer their preset page before selectNode applies the default
+    // representation, so the highlight has to be corrected once the rep is known.
+    if (typeof LayerSetPanel !== "undefined") LayerSetPanel.syncPageToRep(id, repId);
     if (typeof updateLegend === "function") updateLegend();
     // Switching to/from Heat × sales flips the time channel — refresh the strip
     // (visibility + which series it draws).

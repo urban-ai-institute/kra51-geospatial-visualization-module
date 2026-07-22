@@ -8,17 +8,26 @@ const state = {
 let map = null;
 
 // ---------- Landing ----------
+// Served from localhost = development, so skip the intro and boot straight into the
+// dashboard. Deployed builds still get the landing animation.
+function isLocalHost() {
+  const h = location.hostname;
+  return h === "localhost" || h === "127.0.0.1" || h === "[::1]" || h === "" || h.endsWith(".localhost");
+}
 function initLanding() {
   document.getElementById("cta-enter").addEventListener("click", enterDashboard);
+  if (isLocalHost()) enterDashboard(true);   // `true`, not the click Event
 }
-function enterDashboard() {
+function enterDashboard(immediate) {
   const landing = document.getElementById("landing");
-  landing.classList.add("leaving");
-  setTimeout(async () => {
+  const show = async () => {
     landing.classList.add("hidden");
     document.getElementById("dashboard").classList.remove("hidden");
     await initDashboard();
-  }, 850);
+  };
+  if (immediate === true) { show(); return; }   // skip the 850ms fade on localhost
+  landing.classList.add("leaving");
+  setTimeout(show, 850);
 }
 
 // ---------- Dashboard boot ----------

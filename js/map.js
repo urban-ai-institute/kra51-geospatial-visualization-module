@@ -21,6 +21,11 @@ const ADDITIVE = {
   blendAlphaSrcFactor: "src-alpha", blendAlphaDstFactor: "one", blendAlphaOperation: "add",
   depthTest: false,
 };
+// Same additive glow, but depth-tested against deck's own buffer. The extruded
+// choropleth/columns write depth, so a label stem drawn with this is HIDDEN where it
+// passes through a bar and only the part above the bar's top shows — the stem reads as
+// rising out of its own region instead of a line pasted over the whole scene.
+const ADDITIVE_DEPTH = Object.assign({}, ADDITIVE, { depthTest: true });
 
 function lerp(a, b, t) { return Math.round(a + (b - a) * t); }
 function mixStops(stops, t) {
@@ -308,13 +313,15 @@ class AtlasMap3D {
         : { dong_code: r.code, dong_name: r.name, gu_code: r.gu_code, colorVal: this._regionValue(r, spec), heightVal: this._regionValue(r, hspec) } }));
   }
 
-  _timeChoroplethFeatures() {
+  // Day-value lookup for the active time variable, per region kind. Shared so the
+  // drawn polygons and the labels can never disagree about a region's value.
+  _timeValueFn() {
     const kind = this.timeVar === "sales" ? "sales" : "temp";
     const guVals = Atlas.dayValueByGu(this.timeDayIndex, kind);
     const dongVals = kind === "sales" && typeof Atlas.groupSalesByDong === "function"
       ? Atlas.groupSalesByDong(this.timeDayIndex)
       : {};
-    const valueFor = (r) => {
+    return (r) => {
       if (r.kind === "gu") return guVals[r.code];
       if (r.kind === "dong") {
         if (kind === "sales") return (dongVals[r.code] || []).reduce((sum, v) => sum + (v || 0), 0);
@@ -326,6 +333,23 @@ class AtlasMap3D {
         ? vals.reduce((sum, v) => sum + v, 0)
         : vals.reduce((sum, v) => sum + v, 0) / vals.length;
     };
+  }
+  // Time-mode rows AT THE DRAWN GRAIN (dong when the map draws dongs). _regionData's
+  // time branch stays gu-only on purpose — the sales rings rely on that — so labels
+  // use this instead, otherwise they showed 25 gu names over 422 dong bars.
+  _timeRegionRows() {
+    const [lo, hi] = Atlas.timeVarDomain(this.timeVar);
+    const span = (hi - lo) || 1;
+    const valueFor = this._timeValueFn();
+    return this._grainRegions().map((r) => {
+      const v = valueFor(r);
+      const t = (v == null || !Number.isFinite(v)) ? null : Math.max(0, Math.min(1, (v - lo) / span));
+      return Object.assign({}, r, { value: v, colorT: t, magT: t == null ? 0 : t });
+    });
+  }
+
+  _timeChoroplethFeatures() {
+    const valueFor = this._timeValueFn();
     if (this._grain() === "seoul") {
       const cv = valueFor({ kind: "seoul" });
       return Atlas.guGeometry.map((x) => ({ type: "Feature", geometry: x.geometry,
@@ -1149,29 +1173,85 @@ class AtlasMap3D {
     return !!(this.layers.choropleth || this.layers.columns
       || ["columns", "signedcols", "radial", "buildingmix"].includes(this.sectorView));
   }
+  // Max top (metres, BEFORE elevationScale) of whatever the active representation
+  // draws. Every rep has its own vertical scale, so a single shared constant threw the
+  // labels wildly off: choropleth/columns run to ~90k, the stacked sector columns to a
+  // few thousand, and buildingmix uses REAL building heights capped at 210*1.8 — which
+  // is why Buildings labels sat ~200x above the skyline.
+  _labelHeightScale() {
+    const drilled = this._grain() === "dong";
+    switch (this.sectorView) {
+      case "buildingmix": return 210 * 1.8;                   // _buildingMixLayers getElevation cap
+      case "signedcols":  return drilled ? 1500 : 3400;        // stacks normalised to `unit`
+      case "columns":
+      case "radial":      return (drilled ? 900 : 2200) * 3;   // ~3 stacked segments of `unit`
+      default:            return drilled ? 55000 : 90000;      // choropleth / columns layer
+    }
+  }
+  // Buildings are drawn at a uniform capped height, so their labels must clear the
+  // skyline instead of scaling with the region's value (a low-value gu still has towers).
+  _labelUniformHeight() { return this.sectorView === "buildingmix"; }
   // Each label sits on its own bar. The stem height uses the SAME linear
   // |value|/hMax normalisation the bars use (map.js choropleth/columns getElevation),
   // so a label never detaches and floats alone above a short bar. Flat reps get a
   // small constant lift so the name reads clear of the fill.
-  _MAX_LABELS = 22;
+  // Safety ceiling only — the screen-distance rule below is what actually declutters,
+  // so this can stay loose and let a zoomed-in view show plenty of names.
+  _MAX_LABELS = 60;
   _labelRegions() {
-    const rows = this._regionData().filter((d) => d && d.position && d.name);
+    // In time mode take the grain-following rows, so dong bars get dong labels.
+    const rows = (this.timeMode ? this._timeRegionRows() : this._regionData())
+      .filter((d) => d && d.position && d.name);
     const extruded = this._isExtruded();
-    const EXT = this._grain() === "dong" ? 55000 : 90000;
-    let hMax = 0;
-    for (const d of rows) hMax = Math.max(hMax, Math.abs(d.heightValue || 0));
-    hMax = hMax || 1;
+    const EXT = this._labelHeightScale();
+    // The height ratio must match whichever layer is actually drawing the bars:
+    //  · time mode  → _timeChoroplethLayer normalises against the FIXED whole-period
+    //    domain, and _regionData's time branch carries `value` but no `heightValue`
+    //    (without this the stems sat flat at the base while the bars rose).
+    //  · otherwise  → the static choropleth/columns use |heightValue| / max|heightValue|.
+    let ratioOf;
+    if (this.timeMode) {
+      const [glo, ghi] = Atlas.timeVarDomain(this.timeVar);
+      const gspan = (ghi - glo) || 1;
+      ratioOf = (d) => (Number.isFinite(d.value) ? Math.max(0, Math.min(1, (d.value - glo) / gspan)) : 0);
+    } else {
+      let hMax = 0;
+      for (const d of rows) hMax = Math.max(hMax, Math.abs(d.heightValue || 0));
+      hMax = hMax || 1;
+      ratioOf = (d) => Math.abs(d.heightValue || 0) / hMax;
+    }
+    // Clearance above the geometry has to scale with the rep too — 1.2 km over a 378 m
+    // skyline would still leave the Buildings labels floating in space.
+    const uniform = this._labelUniformHeight();
+    const lift = Math.max(40, Math.min(1400, EXT * 0.06));
     for (const d of rows) {
-      const ratio = Math.abs(d.heightValue || 0) / hMax;
-      d._stemTop = (extruded ? ratio * EXT * this.elevationScale : 0) + 1200 + ratio * 700;
+      const ratio = ratioOf(d);
+      const hRatio = uniform ? 1 : ratio;
+      d._stemTop = (extruded ? hRatio * EXT * this.elevationScale : 0) + lift + ratio * lift * 0.5;
     }
     if (rows.length <= 40) return rows;
-    // Crowded grain (all ~424 dongs): keep the selected region, then the strongest N.
+    // Crowded grain (all ~424 dongs). Ranking by value alone is not enough: the biggest
+    // |RHSI| dongs all sit downtown, so the "top N" landed as one overlapping clump.
+    // Walk the ranking and keep a label only when it is far enough from the ones already
+    // kept — measured in SCREEN pixels, so zooming in naturally reveals more names.
     const sel = this.selectedDongCode;
     const ranked = [...rows].sort((a, b) => (b.magT || 0) - (a.magT || 0));
-    const keep = new Set(ranked.slice(0, this._MAX_LABELS));
-    const picked = rows.find((d) => d.code === sel);
-    if (picked) keep.add(picked);
+    const selected = rows.find((d) => d.code === sel);
+    if (selected) ranked.unshift(selected);          // the selected region always wins
+    const project = (d) => {
+      if (!this.map || !this.map.project) return null;
+      const p = this.map.project({ lng: d.position[0], lat: d.position[1] });
+      return (p && Number.isFinite(p.x)) ? p : null;
+    };
+    const MIN_PX = 78, kept = [], keep = new Set();
+    for (const d of ranked) {
+      if (keep.has(d)) continue;
+      const p = project(d);
+      if (!p) { keep.add(d); continue; }             // no camera yet → fall back to rank
+      if (kept.some((q) => Math.abs(q.x - p.x) < MIN_PX && Math.abs(q.y - p.y) < MIN_PX)) continue;
+      kept.push(p); keep.add(d);
+      if (keep.size >= this._MAX_LABELS) break;
+    }
     return rows.filter((d) => keep.has(d));
   }
   _labelStemTop(d) { return d._stemTop != null ? d._stemTop : 1200; }
@@ -1183,14 +1263,14 @@ class AtlasMap3D {
       getSourcePosition: (d) => [d.position[0], d.position[1], 0],
       getTargetPosition: (d) => [d.position[0], d.position[1], this._labelStemTop(d)],
       getColor: [226, 236, 250, Math.round(150 * glow)],
-      widthUnits: "pixels", getWidth: 1.2, parameters: ADDITIVE,
+      widthUnits: "pixels", getWidth: 1.2, parameters: ADDITIVE_DEPTH,
       updateTriggers: { getSourcePosition: [this._sig()], getTargetPosition: [this._sig(), this.elevationScale], getColor: [this.glow] },
     });
     const dots = new deck.ScatterplotLayer({
       id: "label-anchors", data, pickable: false,
       getPosition: (d) => [d.position[0], d.position[1], this._labelStemTop(d)],
       radiusUnits: "pixels", getRadius: 1.8, getFillColor: [236, 244, 255, Math.round(220 * glow)],
-      parameters: ADDITIVE, billboard: true,
+      parameters: ADDITIVE_DEPTH, billboard: true,
       updateTriggers: { getPosition: [this._sig(), this.elevationScale], getFillColor: [this.glow] },
     });
     const text = new deck.TextLayer({
@@ -1198,10 +1278,18 @@ class AtlasMap3D {
       getPosition: (d) => [d.position[0], d.position[1], this._labelStemTop(d)],
       getText: (d) => d.name,
       getSize: this.scope.level === "city" ? 12 : 11, sizeUnits: "pixels",
-      getPixelOffset: [0, -9],
+      // ArcGIS labelSymbol3D offsets by screenLength — a screen-pixel gap keeps the
+      // spacing constant at any zoom instead of drifting with the world-metre lift.
+      getPixelOffset: [0, -14],
       getColor: [230, 238, 248, 235], fontFamily: "Inter, sans-serif", fontWeight: 600,
       getTextAnchor: "middle", getAlignmentBaseline: "bottom",
       outlineWidth: 2.5, outlineColor: [5, 7, 11, 235], fontSettings: { sdf: true },
+      // NOTE: deck.gl's CollisionFilterExtension is available (9.3.7) and would replace
+      // the top-N cut below with real screen-space decluttering, but wiring it here culled
+      // EVERY label — even 25 gu names with no overlap. The docs' caveat is that the
+      // collision test needs a visible pixel at the layer's anchor, which a transparent
+      // SDF glyph + billboard + z-offset does not guarantee. Revisit with `background:
+      // true` (opaque box guarantees the anchor pixel) before turning this back on.
       updateTriggers: { getText: [this._sig()], getPosition: [this._sig(), this.elevationScale], getSize: [this.scope.level] },
     });
     return [stems, dots, text];
@@ -1316,7 +1404,12 @@ class AtlasMap3D {
   _staticLayers() {
     if (!this._deckReady) return [];
     const osmKey = (typeof Atlas !== "undefined" && Atlas.osmLoadedKey) ? Atlas.osmLoadedKey() : "";
-    const sig = [this._sig(), JSON.stringify(this.layers), this.elevationScale, this.radiusScale, this.opacity, this.glow, this.selectedDongCode, osmKey].join("#");
+    // Label thinning is measured in screen pixels, so it must be redone as the camera
+    // zooms. Only labels care, so the bucket joins the key only while they are on —
+    // otherwise the static layers would rebuild on every zoom step for nothing.
+    const zoomKey = (this.layers.labels && this.map && this.map.getZoom)
+      ? "z" + (Math.round(this.map.getZoom() * 2) / 2) : "";
+    const sig = [this._sig(), JSON.stringify(this.layers), this.elevationScale, this.radiusScale, this.opacity, this.glow, this.selectedDongCode, osmKey, zoomKey].join("#");
     if (this._staticCache && this._staticCache.sig === sig) return this._staticCache.layers;
     const L = this.layers;
     const layers = [...this._pickLayer()];

@@ -1297,6 +1297,52 @@ html, body {
 .ls-b.on { color: #fff; border-color: rgba(125,167,255,0.6); background: rgba(125,167,255,0.16); box-shadow: 0 0 14px rgba(125,167,255,0.22); }
 .ls-b.ls-dis { opacity: 0.4; cursor: not-allowed; }
 .ls-b.ls-dis:hover { color: var(--muted); border-color: var(--panel-border); }
+/* Preset rows (right rail): [structure] [its design ▾], one preset per line. */
+.ls-prows { display: flex; flex-direction: column; gap: 4px; }
+.ls-prow {
+  display: flex; align-items: center; gap: 5px;
+  border: 1px solid var(--panel-border); border-radius: 7px; padding: 3px 4px 3px 3px;
+  background: rgba(255,255,255,0.02); transition: all 0.15s ease;
+}
+.ls-prow:hover { border-color: rgba(255,255,255,0.2); }
+.ls-prow.on { border-color: rgba(125,167,255,0.6); background: rgba(125,167,255,0.14); box-shadow: 0 0 14px rgba(125,167,255,0.18); }
+.ls-prow.ls-dis { opacity: 0.4; }
+.ls-prow.ls-dis:hover { border-color: var(--panel-border); }
+.ls-prow-pick {
+  flex: 1 1 auto; min-width: 0; display: flex; align-items: center; gap: 6px;
+  background: none; border: 0; padding: 4px 5px; border-radius: 5px;
+  color: var(--muted); cursor: pointer; font-family: var(--font-ui); text-align: left;
+}
+.ls-prow-pick i { font-style: normal; font-size: 12px; line-height: 1; flex: none; }
+.ls-prow-pick span { font-size: 10.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ls-prow-pick:disabled { cursor: not-allowed; }
+.ls-prow.on .ls-prow-pick { color: #fff; }
+/* current design = icon only (the rail is 172px wide); tap to open the picker */
+.ls-prow-rep {
+  flex: none; width: 24px; height: 24px; display: flex; align-items: center; justify-content: center;
+  background: rgba(255,255,255,0.04); border: 1px solid var(--panel-border); border-radius: 6px;
+  color: var(--muted); font-size: 12px; line-height: 1; cursor: pointer; transition: all 0.15s ease;
+}
+.ls-prow-rep:hover { color: var(--text); border-color: rgba(255,255,255,0.24); }
+.ls-prow.on .ls-prow-rep { color: #fff; border-color: rgba(125,167,255,0.45); }
+.ls-prow-rep.open { color: #fff; border-color: rgba(125,167,255,0.7); background: rgba(125,167,255,0.18); }
+/* picker expands INSIDE the stack (no absolute popover — the rail clips + scrolls) */
+.ls-repmenu {
+  display: flex; flex-direction: column; gap: 2px;
+  margin: 3px 0 1px 10px; padding: 4px; border-radius: 6px;
+  border: 1px solid rgba(125,167,255,0.28); background: rgba(125,167,255,0.06);
+}
+.ls-repmenu[hidden] { display: none; }
+.ls-repopt {
+  display: flex; align-items: center; gap: 7px; width: 100%;
+  background: none; border: 0; padding: 4px 5px; border-radius: 5px;
+  color: var(--muted); cursor: pointer; font-family: var(--font-ui); text-align: left;
+}
+.ls-repopt i { font-style: normal; font-size: 12px; line-height: 1; flex: none; width: 14px; text-align: center; }
+.ls-repopt span { font-size: 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ls-repopt:hover { color: var(--text); background: rgba(255,255,255,0.05); }
+.ls-repopt.on { color: #fff; background: rgba(125,167,255,0.18); }
+
 .ls-select { width: 100%; background: rgba(255,255,255,0.03); color: var(--text); border: 1px solid var(--panel-border);
   border-radius: 6px; padding: 6px 7px; font-size: 12px; font-family: var(--font-ui); }
 .ls-select:hover { border-color: rgba(255,255,255,0.2); }
