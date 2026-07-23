@@ -396,9 +396,13 @@
 <!-- Classic scripts: they run in document order, after the CDN libraries above.
      Freshness is handled by ETag revalidation (see _headers), not a query string. -->
 <script src="js/data.js"></script>
-<!-- Config: pure declaration tables, no logic. Must load before their consumers
-     (panels.js / layerset/panel.js) since these are plain globals. -->
+<!-- Config: pure declaration tables, no logic. Order matters (plain globals):
+     icons → representation → uhus, all before panels.js / layerset/panel.js.
+     uhus.js is this project's dataset config; it references ICONS.* and
+     DESIGN_REPS, so those load first. -->
+<script src="js/config/icons.js"></script>
 <script src="js/config/representation.js"></script>
+<script src="js/config/uhus.js"></script>
 <script src="js/map.js"></script>
 <script src="js/charts.js"></script>
 <script src="js/timeline.js"></script>
